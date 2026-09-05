@@ -83,6 +83,45 @@ export async function finishRun(
   });
 }
 
+/**
+ * Runs left at "running" by a process that died mid-execution.
+ *
+ * The run route closes its own records even on a disconnect, but nothing can
+ * run in-process after a crash or a restart, so those rows would stay
+ * "running" forever. Reconciling lazily on read avoids needing a background
+ * job for what is a rare case.
+ */
+export const STALE_RUN_MS = 5 * 60 * 1000;
+
+let lastReconciledAt = 0;
+
+export async function reconcileStaleRuns(
+  staleAfterMs: number = STALE_RUN_MS,
+  now: number = Date.now(),
+): Promise<number> {
+  const { count } = await prisma.run.updateMany({
+    where: { status: "running", startedAt: { lt: new Date(now - staleAfterMs) } },
+    data: {
+      status: "cancelled",
+      error: "Interrupted — the server stopped before this run finished.",
+      finishedAt: new Date(now),
+    },
+  });
+  return count;
+}
+
+/** Throttled wrapper, so a read-heavy page does not write on every request. */
+export async function reconcileStaleRunsThrottled(intervalMs = 30_000): Promise<void> {
+  const now = Date.now();
+  if (now - lastReconciledAt < intervalMs) return;
+  lastReconciledAt = now;
+  try {
+    await reconcileStaleRuns();
+  } catch (error) {
+    console.error("Could not reconcile stale runs:", error);
+  }
+}
+
 export async function listRuns(options: { workflowId?: string; limit?: number } = {}) {
   const rows = await prisma.run.findMany({
     where: options.workflowId ? { workflowId: options.workflowId } : undefined,

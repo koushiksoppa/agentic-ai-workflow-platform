@@ -158,20 +158,44 @@ tokens) is returned with each result and shown in the inspector.
 
 ## Security model
 
-Two nodes execute what the workflow tells them to, and both treat the workflow
-definition as **trusted input**:
+**Outbound requests.** The HTTP node runs on the server, so an unrestricted
+one could reach anything the server can: loopback services, private LAN
+addresses, and cloud instance metadata endpoints that hand out credentials.
+Requests are therefore validated before they are sent:
 
-- **Transform** and **Condition** evaluate their expression with `new Function`.
-  This is not a sandbox — an expression runs with the full privileges of the
-  server process.
-- **HTTP Request** will fetch whatever URL it is given, from the server.
+- Loopback, private, link-local (including `169.254.169.254`), carrier-grade
+  NAT, multicast and reserved ranges are refused, for both IPv4 and IPv6,
+  including IPv4-mapped forms such as `::ffff:127.0.0.1`.
+- Hostnames are resolved first, and rejected if *any* resolved address is
+  private, so a split-horizon name cannot slip through on its public record.
+- Redirects are followed manually and re-validated at every hop, since
+  following them blindly would let a public URL bounce the server into the
+  internal network.
+- Credentials embedded in a URL are rejected, and query strings are stripped
+  from error messages, because they routinely carry API keys.
+- `set-cookie`, `authorization` and the `*-authenticate` response headers are
+  dropped from node output, so session material cannot be fed into a prompt or
+  a stored run record.
+- Responses are capped at 1 MB and requests carry a configurable timeout
+  (1–120s) covering the whole redirect chain.
 
-That is fine while the only person who can author a workflow is the operator
-running the app, which is the current single-user design. Before exposing
-workflow authoring to untrusted or multi-tenant users, expression evaluation
-must move behind a real sandbox (isolated-vm, QuickJS/WASM, or a subprocess
-with a hard timeout) and the HTTP node needs egress restrictions to block
-requests to internal addresses.
+Set `ALLOW_PRIVATE_NETWORK_REQUESTS=true` to lift the address restrictions when
+developing against a service on localhost.
+
+*Known limitation:* the resolved address is not pinned for the connection
+itself, so DNS rebinding between the check and the request is not defeated.
+Closing that requires dialling the validated IP through a custom agent.
+
+**Expression evaluation.** Transform and Condition nodes evaluate their
+expression with `new Function`. This is not a sandbox — an expression runs with
+the privileges of the server process. That is acceptable while the only person
+who can author a workflow is the operator running the app, which is the current
+single-user design. Before exposing workflow authoring to untrusted or
+multi-tenant users, expression evaluation must move behind a real sandbox
+(isolated-vm, QuickJS/WASM, or a subprocess with a hard timeout).
+
+**Secrets.** API keys live in `.env.local`, which is gitignored. They are never
+returned by the API, written to a run record, or rendered in the UI.
 
 ## Roadmap
 

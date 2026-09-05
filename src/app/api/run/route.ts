@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { executeWorkflow } from "@/lib/engine/execute";
+import type { RunStatus } from "@/lib/engine/types";
 import { createRun, finishRun, recordStep } from "@/lib/db/runs";
 import { workflowDocumentSchema } from "@/lib/api/schemas";
 import type { WorkflowDocument } from "@/lib/types/workflow";
@@ -45,14 +46,44 @@ export async function POST(request: Request) {
   }
 
   const encoder = new TextEncoder();
+  const startedAt = Date.now();
   let position = 0;
   // node:start carries the input; the step row is only written on completion.
   const inputs = new Map<string, unknown>();
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (event: unknown) =>
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      // Once the client disconnects, enqueueing throws. Swallowing that here
+      // keeps a dead stream from hijacking control flow and skipping the
+      // persistence below, which previously left runs stuck at "running".
+      let clientGone = false;
+      const send = (event: unknown) => {
+        if (clientGone) return;
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}
+
+`));
+        } catch {
+          clientGone = true;
+        }
+      };
+
+      // Every terminal status goes through here, and it runs at most once, so
+      // the run record always reaches a final state exactly one time.
+      let closed = false;
+      const closeRun = async (
+        status: RunStatus,
+        error: string | null,
+        durationMs: number,
+      ) => {
+        if (!runId || closed) return;
+        closed = true;
+        try {
+          await finishRun(runId, { status, error, durationMs });
+        } catch (dbError) {
+          console.error("Could not close the run record:", dbError);
+        }
+      };
 
       try {
         for await (const event of executeWorkflow(document, {
@@ -84,11 +115,7 @@ export async function POST(request: Request) {
                 });
                 break;
               case "run:finish":
-                await finishRun(runId, {
-                  status: event.status,
-                  error: event.error ?? null,
-                  durationMs: event.durationMs,
-                });
+                await closeRun(event.status, event.error ?? null, event.durationMs);
                 break;
             }
           } catch (error) {
@@ -100,19 +127,25 @@ export async function POST(request: Request) {
         send({
           type: "run:finish",
           status: "error",
-          durationMs: 0,
+          durationMs: Date.now() - startedAt,
           outputs: {},
           error: message,
         });
-        if (runId) {
-          try {
-            await finishRun(runId, { status: "error", error: message, durationMs: 0 });
-          } catch {
-            // Already reported to the client; nothing further to do.
-          }
-        }
+        await closeRun("error", message, Date.now() - startedAt);
       } finally {
-        controller.close();
+        // Backstop: if the generator was abandoned before emitting a terminal
+        // event — a disconnect being the usual cause — the run would otherwise
+        // stay "running" forever.
+        await closeRun(
+          "cancelled",
+          "The client disconnected before the run finished.",
+          Date.now() - startedAt,
+        );
+        try {
+          controller.close();
+        } catch {
+          // Already closed or errored by the disconnect; nothing to do.
+        }
       }
     },
   });

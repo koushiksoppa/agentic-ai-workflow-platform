@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { NodeConfig, NodeKind, PortSpec } from "@/lib/types/workflow";
 import { DEFAULT_MODEL, MODEL_OPTIONS } from "./models";
+import { DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, MIN_TIMEOUT_MS } from "./http-config";
 
 export { MODEL_OPTIONS } from "./models";
 
@@ -147,7 +148,8 @@ export const NODE_DEFINITIONS: Record<NodeKind, NodeDefinition> = {
   http: {
     kind: "http",
     label: "HTTP Request",
-    description: "Calls an external endpoint and returns the parsed response.",
+    description:
+      "Calls an external endpoint and returns the parsed response. Requests to private and loopback addresses are blocked.",
     category: "Data",
     accent: "bg-sky-500",
     inputs: [{ id: "in", label: "Input", type: "any", multiple: true }],
@@ -157,8 +159,21 @@ export const NODE_DEFINITIONS: Record<NodeKind, NodeDefinition> = {
       url: z.string().min(1, "URL is required"),
       headers: z.string(),
       body: z.string(),
+      // Optional so workflows saved before timeouts were configurable stay valid.
+      timeoutMs: z
+        .number()
+        .int()
+        .min(MIN_TIMEOUT_MS, `Minimum ${MIN_TIMEOUT_MS}ms`)
+        .max(MAX_TIMEOUT_MS, `Maximum ${MAX_TIMEOUT_MS}ms`)
+        .optional(),
     }),
-    defaultConfig: { method: "GET", url: "", headers: "{}", body: "" },
+    defaultConfig: {
+      method: "GET",
+      url: "",
+      headers: "{}",
+      body: "",
+      timeoutMs: DEFAULT_TIMEOUT_MS,
+    },
     fields: [
       {
         key: "method",
@@ -175,6 +190,15 @@ export const NODE_DEFINITIONS: Record<NodeKind, NodeDefinition> = {
       { key: "url", label: "URL", kind: "text", placeholder: "https://api.example.com/items" },
       { key: "headers", label: "Headers (JSON)", kind: "textarea", rows: 3, mono: true },
       { key: "body", label: "Body", kind: "textarea", rows: 4, mono: true, help: TEMPLATE_HELP },
+      {
+        key: "timeoutMs",
+        label: "Timeout (ms)",
+        kind: "number",
+        min: MIN_TIMEOUT_MS,
+        max: MAX_TIMEOUT_MS,
+        step: 1000,
+        help: "Applies to the whole request, including redirects.",
+      },
     ],
     summary: (c) => `${String(c.method || "GET")} ${String(c.url || "not set")}`,
   },
