@@ -20,6 +20,7 @@ import { Toolbar, type SaveState } from "./Toolbar";
 import { LibraryPanel } from "./LibraryPanel";
 import { ShortcutsOverlay } from "./ShortcutsOverlay";
 import { RunInputsBar } from "./RunInputsBar";
+import { EXAMPLES } from "@/lib/nodes/examples";
 import { useWorkflowStore } from "@/lib/store/workflow-store";
 import { runWorkflow } from "@/lib/store/run-client";
 import { saveCurrentWorkflow } from "@/lib/store/library-client";
@@ -204,7 +205,7 @@ function CanvasInner() {
   const problems = validateGraph(nodes, edges);
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="relative flex flex-1 overflow-hidden">
       <NodePalette onAdd={addToCenter} />
 
       <div className="relative flex flex-1 flex-col">
@@ -241,10 +242,40 @@ function CanvasInner() {
           </ReactFlow>
 
           {nodes.length === 0 ? (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <p className="text-[13px] text-zinc-400 dark:text-zinc-500">
-                Drag a node from the left to start building.
-              </p>
+            <div className="absolute inset-0 flex items-center justify-center p-6">
+              <div className="max-w-md text-center">
+                <p className="text-[13px] text-zinc-500 dark:text-zinc-400">
+                  Drag a node from the palette to start building, or open an example.
+                </p>
+                <div className="mt-4 flex flex-col gap-2">
+                  {EXAMPLES.map((example) => (
+                    <button
+                      key={example.id}
+                      type="button"
+                      onClick={() => loadDocument(example.build())}
+                      className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-left transition-colors hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-500"
+                    >
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="text-[13px] font-medium text-zinc-800 dark:text-zinc-100">
+                          {example.name}
+                        </span>
+                        {example.requiresApiKey ? (
+                          <span className="shrink-0 text-[10px] text-amber-600 dark:text-amber-400">
+                            needs API key
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-[10px] text-emerald-600 dark:text-emerald-400">
+                            runs as-is
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] leading-4 text-zinc-500 dark:text-zinc-400">
+                        {example.description}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : null}
 
@@ -265,7 +296,12 @@ function CanvasInner() {
 
       <Inspector node={selectedNode} />
 
-      {libraryOpen ? <LibraryPanel onClose={() => setLibraryOpen(false)} /> : null}
+      {/* Overlaid rather than a fourth column, which used to squeeze the canvas. */}
+      {libraryOpen ? (
+        <div className="absolute inset-y-0 right-0 z-20 flex shadow-2xl">
+          <LibraryPanel onClose={() => setLibraryOpen(false)} />
+        </div>
+      ) : null}
     </div>
   );
 }

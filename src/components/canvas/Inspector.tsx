@@ -202,7 +202,7 @@ export function Inspector({ node }: { node: WorkflowNode | null }) {
 
   if (!node) {
     return (
-      <aside className="w-72 shrink-0 border-l border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <aside className="w-60 shrink-0 border-l border-zinc-200 bg-white p-4 lg:w-72 dark:border-zinc-800 dark:bg-zinc-900">
         <p className="text-[13px] text-zinc-400 dark:text-zinc-500">
           Select a node to edit its configuration.
         </p>
@@ -220,7 +220,7 @@ export function Inspector({ node }: { node: WorkflowNode | null }) {
   );
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+    <aside className="flex w-60 shrink-0 flex-col overflow-y-auto border-l lg:w-72 border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
         <div className="flex items-center gap-2">
           <span className={`h-2 w-2 rounded-full ${definition.accent}`} />

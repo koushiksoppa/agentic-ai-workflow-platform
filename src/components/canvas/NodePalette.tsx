@@ -16,7 +16,7 @@ function groupByCategory(): [NodeCategory, NodeDefinition[]][] {
 
 export function NodePalette({ onAdd }: { onAdd: (kind: NodeKind) => void }) {
   return (
-    <aside className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+    <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r lg:w-56 border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Nodes</h2>
         <p className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
