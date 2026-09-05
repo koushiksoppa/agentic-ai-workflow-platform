@@ -46,6 +46,8 @@ export async function POST(request: Request) {
 
   const encoder = new TextEncoder();
   let position = 0;
+  // node:start carries the input; the step row is only written on completion.
+  const inputs = new Map<string, unknown>();
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -61,6 +63,8 @@ export async function POST(request: Request) {
         })) {
           send(event);
 
+          if (event.type === "node:start") inputs.set(event.nodeId, event.input);
+
           if (!runId) continue;
 
           try {
@@ -73,6 +77,7 @@ export async function POST(request: Request) {
                   nodeKind: kindOf.get(event.nodeId) ?? "unknown",
                   position: position++,
                   status: event.type.slice("node:".length),
+                  input: inputs.get(event.nodeId),
                   output: event.type === "node:success" ? event.output : undefined,
                   error: event.type === "node:error" ? event.error : null,
                   durationMs: "durationMs" in event ? event.durationMs : null,

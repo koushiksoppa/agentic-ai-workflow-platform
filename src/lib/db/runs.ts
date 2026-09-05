@@ -33,6 +33,7 @@ export async function recordStep(
     nodeKind: string;
     position: number;
     status: string;
+    input?: unknown;
     output?: unknown;
     error?: string | null;
     durationMs?: number | null;
@@ -40,6 +41,7 @@ export async function recordStep(
 ): Promise<void> {
   const output =
     step.output === undefined ? null : JSON.stringify(step.output ?? null);
+  const input = step.input === undefined ? null : JSON.stringify(step.input ?? null);
 
   // A re-run of the same node id within one run overwrites rather than throws.
   await prisma.runStep.upsert({
@@ -50,12 +52,14 @@ export async function recordStep(
       nodeKind: step.nodeKind,
       position: step.position,
       status: step.status,
+      input,
       output,
       error: step.error ?? null,
       durationMs: step.durationMs ?? null,
     },
     update: {
       status: step.status,
+      input,
       output,
       error: step.error ?? null,
       durationMs: step.durationMs ?? null,
@@ -145,6 +149,7 @@ export async function getRun(id: string): Promise<RunDetail | null> {
       nodeKind: step.nodeKind,
       position: step.position,
       status: step.status,
+      input: step.input === null ? null : safeParse(step.input),
       output: step.output === null ? null : safeParse(step.output),
       error: step.error,
       durationMs: step.durationMs,

@@ -63,6 +63,8 @@ model RunStep {
   position Int
 
   status     String // success | error | skipped
+  /// Serialized value that arrived on this node's edges, for inspection.
+  input      String?
   /// Serialized node output; null for failed or skipped steps.
   output     String?
   error      String?

@@ -90,9 +90,30 @@ function preview(value: unknown): string {
   }
 }
 
-/** Last run's outcome for this node: status, timing, error, and output. */
+function Payload({ label, value }: { label: string; value: unknown }) {
+  if (value === undefined) return null;
+  const text = preview(value);
+
+  return (
+    <details className="mt-2" open={text.length < 400}>
+      <summary className="cursor-pointer text-[11px] text-zinc-500 select-none hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+        {label}
+        <span className="ml-1 font-mono text-[10px] text-zinc-400 dark:text-zinc-500">
+          {text.length} chars
+        </span>
+      </summary>
+      <pre className="mt-1 max-h-48 overflow-auto rounded bg-zinc-50 px-2 py-1.5 font-mono text-[11px] leading-5 whitespace-pre-wrap text-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
+        {text}
+      </pre>
+    </details>
+  );
+}
+
+/** Last run's outcome for this node: status, timing, error, input, and output. */
 function NodeResult({ node }: { node: WorkflowNode }) {
   const output = useWorkflowStore((s) => s.runOutputs[node.id]);
+  const input = useWorkflowStore((s) => s.runInputs[node.id]);
+  const streamed = useWorkflowStore((s) => s.streaming[node.id]);
   const run = node.data.run;
 
   if (!run || run.status === "idle") return null;
@@ -123,11 +144,18 @@ function NodeResult({ node }: { node: WorkflowNode }) {
         </p>
       ) : null}
 
-      {run.status === "success" && output !== undefined ? (
-        <pre className="mt-2 max-h-48 overflow-auto rounded bg-zinc-50 px-2 py-1.5 font-mono text-[11px] leading-5 whitespace-pre-wrap text-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-          {preview(output)}
-        </pre>
+      {run.status === "skipped" ? (
+        <p className="mt-2 text-[11px] leading-5 text-zinc-400 dark:text-zinc-500">
+          Skipped — no upstream branch reached this node.
+        </p>
       ) : null}
+
+      <Payload label="Input" value={input} />
+      {/* While running, the streamed text is the only output there is. */}
+      <Payload
+        label="Output"
+        value={run.status === "running" ? (streamed || undefined) : output}
+      />
     </div>
   );
 }

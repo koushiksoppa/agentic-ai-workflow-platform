@@ -64,6 +64,8 @@ interface WorkflowState {
   runPhase: RunPhase;
   runError: string | null;
   runOutputs: Record<string, unknown>;
+  /** What arrived on each node's edges, captured at node:start. */
+  runInputs: Record<string, unknown>;
   runDurationMs: number | null;
   /** Partial text arriving from streaming nodes, keyed by node id. */
   streaming: Record<string, string>;
@@ -170,6 +172,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   runPhase: "idle",
   runError: null,
   runOutputs: {},
+  runInputs: {},
   runDurationMs: null,
   streaming: {},
 
@@ -178,6 +181,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       runPhase: "running",
       runError: null,
       runOutputs: {},
+      runInputs: {},
       runDurationMs: null,
       streaming: {},
       // Clear the previous run's badges so stale results are never shown as current.
@@ -196,6 +200,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           return {
             nodes: patchNodeRun(state.nodes, event.nodeId, { status: "running" }),
             streaming: { ...state.streaming, [event.nodeId]: "" },
+            runInputs: { ...state.runInputs, [event.nodeId]: event.input },
           };
         case "node:delta":
           return {
@@ -241,6 +246,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       runPhase: "idle",
       runError: null,
       runOutputs: {},
+      runInputs: {},
       runDurationMs: null,
       streaming: {},
       nodes: state.nodes.map((node) => ({
@@ -285,6 +291,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             .filter((step) => step.status === "success")
             .map((step) => [step.nodeId, step.output]),
         ),
+        runInputs: Object.fromEntries(run.steps.map((step) => [step.nodeId, step.input])),
         streaming: {},
       };
     }),
@@ -299,6 +306,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       runPhase: "idle",
       runError: null,
       runOutputs: {},
+      runInputs: {},
       runDurationMs: null,
       streaming: {},
     }),

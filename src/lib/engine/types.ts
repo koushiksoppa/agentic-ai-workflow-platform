@@ -9,7 +9,7 @@ export type RunStatus = "success" | "error" | "cancelled";
  */
 export type RunEvent =
   | { type: "run:start"; runId: string; order: string[] }
-  | { type: "node:start"; nodeId: string }
+  | { type: "node:start"; nodeId: string; input: unknown }
   | { type: "node:delta"; nodeId: string; text: string }
   | { type: "node:success"; nodeId: string; output: unknown; durationMs: number }
   | { type: "node:error"; nodeId: string; error: string; durationMs: number }

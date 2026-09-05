@@ -258,6 +258,29 @@ describe("executeWorkflow", () => {
     expect(finish(events).outputs.transform_1).toBe("one,two");
   });
 
+  it("reports each node's input on node:start, for the inspector", async () => {
+    const events = await runToCompletion(
+      doc(
+        [
+          node("input_1", "input", { name: "a", value: "hello" }),
+          node("output_1", "output"),
+        ],
+        [edge("input_1", "output_1")],
+      ),
+    );
+
+    const starts = events.filter((e) => e.type === "node:start");
+    const entry = starts.find((e) => e.type === "node:start" && e.nodeId === "input_1");
+    const downstream = starts.find((e) => e.type === "node:start" && e.nodeId === "output_1");
+
+    // An entry node has nothing upstream; a downstream node sees what arrived.
+    expect(entry?.type === "node:start" ? entry.input : "missing").toBeUndefined();
+    expect(downstream?.type === "node:start" ? downstream.input : null).toEqual({
+      name: "a",
+      value: "hello",
+    });
+  });
+
   it("emits start and finish around the run", async () => {
     const events = await runToCompletion(doc([node("input_1", "input")], []));
     expect(events[0].type).toBe("run:start");

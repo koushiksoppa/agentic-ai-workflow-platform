@@ -16,9 +16,13 @@ import "@xyflow/react/dist/style.css";
 import { NodePalette, NODE_DRAG_MIME } from "./NodePalette";
 import { Inspector } from "./Inspector";
 import { WorkflowNodeCard } from "./WorkflowNodeCard";
-import { Toolbar } from "./Toolbar";
+import { Toolbar, type SaveState } from "./Toolbar";
 import { LibraryPanel } from "./LibraryPanel";
+import { ShortcutsOverlay } from "./ShortcutsOverlay";
 import { useWorkflowStore } from "@/lib/store/workflow-store";
+import { runWorkflow } from "@/lib/store/run-client";
+import { saveCurrentWorkflow } from "@/lib/store/library-client";
+import { useResolvedTheme } from "@/lib/theme";
 import { validateGraph } from "@/lib/graph/validation";
 import { getDefinition } from "@/lib/nodes/definitions";
 import type { NodeKind, WorkflowDocument } from "@/lib/types/workflow";
@@ -47,7 +51,11 @@ function CanvasInner() {
   // A ref, not state: this only gates the autosave effect and must not itself
   // cause a render.
   const hydrated = useRef(false);
+  const runController = useRef<AbortController | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const theme = useResolvedTheme();
 
   // Restore the draft once, client-side, so SSR markup and first paint agree.
   useEffect(() => {
@@ -81,6 +89,84 @@ function CanvasInner() {
     const timer = setTimeout(dismissRejection, 4000);
     return () => clearTimeout(timer);
   }, [rejection, dismissRejection]);
+
+  const startRun = useCallback(() => {
+    runController.current?.abort();
+    const controller = new AbortController();
+    runController.current = controller;
+    void runWorkflow(controller.signal);
+  }, []);
+
+  const cancelRun = useCallback(() => {
+    runController.current?.abort();
+    runController.current = null;
+  }, []);
+
+  const save = useCallback(async () => {
+    setSaveState("saving");
+    try {
+      await saveCurrentWorkflow();
+      setSaveState("saved");
+    } catch {
+      setSaveState("failed");
+    }
+  }, []);
+
+  // Clear the transient Save confirmation so the button does not read "Saved"
+  // indefinitely. Keyed on the state itself rather than set from the handler.
+  useEffect(() => {
+    if (saveState !== "saved" && saveState !== "failed") return;
+    const timer = setTimeout(() => setSaveState("idle"), 2000);
+    return () => clearTimeout(timer);
+  }, [saveState]);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable === true;
+
+      if (event.key === "Escape") {
+        setShortcutsOpen(false);
+        setLibraryOpen(false);
+        if (!typing) selectNode(null);
+        return;
+      }
+
+      // Everything below would otherwise fight with text entry.
+      if (typing) return;
+
+      if (event.key === "?" || (event.key === "/" && event.shiftKey)) {
+        event.preventDefault();
+        setShortcutsOpen((open) => !open);
+        return;
+      }
+
+      if (!(event.metaKey || event.ctrlKey)) return;
+
+      switch (event.key.toLowerCase()) {
+        case "enter":
+          event.preventDefault();
+          startRun();
+          break;
+        case "s":
+          // Override the browser's Save Page dialog.
+          event.preventDefault();
+          void save();
+          break;
+        case "b":
+          event.preventDefault();
+          setLibraryOpen((open) => !open);
+          break;
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [startRun, save, selectNode]);
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
@@ -124,6 +210,11 @@ function CanvasInner() {
           problems={problems}
           libraryOpen={libraryOpen}
           onToggleLibrary={() => setLibraryOpen((open) => !open)}
+          onShowShortcuts={() => setShortcutsOpen(true)}
+          saveState={saveState}
+          onSave={() => void save()}
+          onRun={startRun}
+          onCancel={cancelRun}
         />
 
         <div ref={wrapper} className="relative flex-1" onDrop={onDrop} onDragOver={onDragOver}>
@@ -137,6 +228,7 @@ function CanvasInner() {
             onNodeClick={(_, node) => selectNode(node.id)}
             onPaneClick={() => selectNode(null)}
             deleteKeyCode={["Backspace", "Delete"]}
+            colorMode={theme}
             fitView
           >
             <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
@@ -159,6 +251,10 @@ function CanvasInner() {
             >
               {rejection.reason}
             </div>
+          ) : null}
+
+          {shortcutsOpen ? (
+            <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />
           ) : null}
         </div>
       </div>

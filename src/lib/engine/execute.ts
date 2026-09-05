@@ -164,7 +164,7 @@ export async function* executeWorkflow(
       if (name in options.inputs) config = { ...config, value: options.inputs[name] };
     }
 
-    yield { type: "node:start", nodeId };
+    yield { type: "node:start", nodeId, input: input.value };
     const nodeStartedAt = Date.now();
 
     try {

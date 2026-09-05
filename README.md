@@ -84,6 +84,32 @@ Open the **Library** panel in the toolbar to browse saved workflows and recent
 runs. Selecting a run restores its snapshot to the canvas with each node's
 recorded result.
 
+Every step records the value that arrived on its edges as well as what it
+produced, so selecting a node after a run shows both its input and its output.
+
+> After changing `prisma/schema.prisma`, run `npx prisma generate` **and
+> restart the dev server**. The generated client is cached in the running
+> process, so a schema change is otherwise silently ignored at runtime.
+
+## Keyboard shortcuts
+
+| Keys | Action |
+|---|---|
+| `Ctrl`/`Cmd` + `Enter` | Run the workflow |
+| `Ctrl`/`Cmd` + `S` | Save the workflow |
+| `Ctrl`/`Cmd` + `B` | Toggle the library panel |
+| `Backspace` / `Delete` | Delete the selected node or edge |
+| `Escape` | Deselect, or close an open panel |
+| `?` | Show the shortcut list |
+
+## Theming
+
+Light, dark, and system, cycled from the toolbar and remembered per browser. An
+inline script resolves the choice before first paint, so the page never flashes
+the wrong theme; every `dark:` style keys off a single `data-theme` attribute
+rather than `prefers-color-scheme`, which is what lets an explicit choice
+override the OS setting.
+
 ## Project structure
 
 ```
@@ -154,7 +180,7 @@ requests to internal addresses.
 - [x] Execution engine — DAG validation, topological execution, step streaming
 - [x] Model-backed nodes — prompt templating, streaming output
 - [x] Persistence — saved workflows, run history, replay
-- [ ] Run inspector — per-node input/output, error surfacing
+- [x] Run inspector — per-node input/output, error surfacing
 
 ## Scripts
 

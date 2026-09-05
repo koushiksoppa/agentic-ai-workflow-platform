@@ -34,6 +34,7 @@ export interface RunStepRecord {
   nodeKind: string;
   position: number;
   status: string;
+  input: unknown;
   output: unknown;
   error: string | null;
   durationMs: number | null;

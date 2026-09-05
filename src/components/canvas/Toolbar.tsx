@@ -2,8 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useWorkflowStore } from "@/lib/store/workflow-store";
-import { runWorkflow } from "@/lib/store/run-client";
-import { saveCurrentWorkflow } from "@/lib/store/library-client";
+import { ThemeToggle } from "./ThemeToggle";
 import type { GraphProblem } from "@/lib/graph/validation";
 import type { WorkflowDocument } from "@/lib/types/workflow";
 
@@ -13,18 +12,41 @@ const buttonClass =
 const runButtonClass =
   "rounded-md bg-zinc-900 px-3 py-1 text-[12px] font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300";
 
+export type SaveState = "idle" | "saving" | "saved" | "failed";
+
+const SAVE_LABEL: Record<SaveState, string> = {
+  idle: "Save",
+  saving: "Saving…",
+  saved: "Saved",
+  failed: "Save failed",
+};
+
 function slugify(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workflow";
 }
 
+/**
+ * Presentational. Run and save live in the canvas so that the buttons here and
+ * the keyboard shortcuts drive exactly one implementation.
+ */
 export function Toolbar({
   problems,
   libraryOpen,
   onToggleLibrary,
+  onShowShortcuts,
+  saveState,
+  onSave,
+  onRun,
+  onCancel,
 }: {
   problems: GraphProblem[];
   libraryOpen: boolean;
   onToggleLibrary: () => void;
+  onShowShortcuts: () => void;
+  saveState: SaveState;
+  onSave: () => void;
+  onRun: () => void;
+  onCancel: () => void;
 }) {
   const name = useWorkflowStore((s) => s.name);
   const setName = useWorkflowStore((s) => s.setName);
@@ -32,41 +54,18 @@ export function Toolbar({
   const toDocument = useWorkflowStore((s) => s.toDocument);
   const loadDocument = useWorkflowStore((s) => s.loadDocument);
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
+  const selectNode = useWorkflowStore((s) => s.selectNode);
+  const nodes = useWorkflowStore((s) => s.nodes);
 
   const runPhase = useWorkflowStore((s) => s.runPhase);
   const runError = useWorkflowStore((s) => s.runError);
   const runDurationMs = useWorkflowStore((s) => s.runDurationMs);
 
   const fileInput = useRef<HTMLInputElement>(null);
-  const runController = useRef<AbortController | null>(null);
   const [showProblems, setShowProblems] = useState(false);
 
   const isRunning = runPhase === "running";
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
-
-  async function save() {
-    setSaveState("saving");
-    try {
-      await saveCurrentWorkflow();
-      setSaveState("saved");
-      // Revert the confirmation so the button does not read "Saved" forever.
-      setTimeout(() => setSaveState("idle"), 2000);
-    } catch {
-      setSaveState("failed");
-    }
-  }
-
-  function startRun() {
-    runController.current?.abort();
-    const controller = new AbortController();
-    runController.current = controller;
-    void runWorkflow(controller.signal);
-  }
-
-  function cancelRun() {
-    runController.current?.abort();
-    runController.current = null;
-  }
+  const failedNodes = nodes.filter((node) => node.data.run?.status === "error");
 
   function exportDocument() {
     const blob = new Blob([JSON.stringify(toDocument(), null, 2)], {
@@ -107,9 +106,15 @@ export function Toolbar({
       </span>
 
       {runPhase !== "idle" && !isRunning ? (
-        <span
-          title={runError ?? undefined}
-          className={`shrink-0 max-w-56 truncate font-mono text-[11px] ${
+        <button
+          type="button"
+          // A failure is clickable: it selects the node that caused it.
+          onClick={() => failedNodes[0] && selectNode(failedNodes[0].id)}
+          disabled={failedNodes.length === 0}
+          title={runError ?? (failedNodes[0] ? "Select the failed node" : undefined)}
+          className={`max-w-56 shrink-0 truncate font-mono text-[11px] ${
+            failedNodes.length > 0 ? "underline decoration-dotted underline-offset-2" : ""
+          } ${
             runPhase === "success"
               ? "text-emerald-600 dark:text-emerald-400"
               : runPhase === "cancelled"
@@ -119,8 +124,10 @@ export function Toolbar({
         >
           {runError
             ? runError
-            : `${runPhase}${runDurationMs !== null ? ` in ${runDurationMs}ms` : ""}`}
-        </span>
+            : failedNodes.length > 0
+              ? `${failedNodes.length} failed`
+              : `${runPhase}${runDurationMs !== null ? ` in ${runDurationMs}ms` : ""}`}
+        </button>
       ) : null}
 
       {problems.length > 0 ? (
@@ -133,13 +140,20 @@ export function Toolbar({
             {problems.length} {problems.length === 1 ? "issue" : "issues"}
           </button>
           {showProblems ? (
-            <ul className="absolute right-0 top-full z-10 mt-1 w-72 rounded-md border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+            <ul className="absolute top-full right-0 z-10 mt-1 w-72 rounded-md border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
               {problems.map((problem, index) => (
-                <li
-                  key={index}
-                  className="px-1 py-1 text-[12px] leading-5 text-zinc-600 dark:text-zinc-300"
-                >
-                  {problem.message}
+                <li key={index}>
+                  <button
+                    type="button"
+                    disabled={!problem.nodeId}
+                    onClick={() => {
+                      if (problem.nodeId) selectNode(problem.nodeId);
+                      setShowProblems(false);
+                    }}
+                    className="w-full rounded px-1 py-1 text-left text-[12px] leading-5 text-zinc-600 enabled:hover:bg-zinc-100 disabled:cursor-default dark:text-zinc-300 dark:enabled:hover:bg-zinc-800"
+                  >
+                    {problem.message}
+                  </button>
                 </li>
               ))}
             </ul>
@@ -148,7 +162,7 @@ export function Toolbar({
       ) : null}
 
       {isRunning ? (
-        <button type="button" className={buttonClass} onClick={cancelRun}>
+        <button type="button" className={buttonClass} onClick={onCancel}>
           Cancel
         </button>
       ) : null}
@@ -156,8 +170,9 @@ export function Toolbar({
       <button
         type="button"
         className={runButtonClass}
-        onClick={startRun}
+        onClick={onRun}
         disabled={isRunning || nodeCount === 0}
+        title="Run the workflow (Ctrl/Cmd + Enter)"
       >
         {isRunning ? "Running…" : "Run"}
       </button>
@@ -165,22 +180,18 @@ export function Toolbar({
       <button
         type="button"
         className={buttonClass}
-        onClick={() => void save()}
+        onClick={onSave}
         disabled={saveState === "saving" || nodeCount === 0}
+        title="Save the workflow (Ctrl/Cmd + S)"
       >
-        {saveState === "saving"
-          ? "Saving…"
-          : saveState === "saved"
-            ? "Saved"
-            : saveState === "failed"
-              ? "Save failed"
-              : "Save"}
+        {SAVE_LABEL[saveState]}
       </button>
 
       <button
         type="button"
         className={`${buttonClass} ${libraryOpen ? "bg-zinc-100 dark:bg-zinc-800" : ""}`}
         onClick={onToggleLibrary}
+        title="Saved workflows and run history (Ctrl/Cmd + B)"
       >
         Library
       </button>
@@ -214,6 +225,18 @@ export function Toolbar({
         }}
       >
         Clear
+      </button>
+
+      <ThemeToggle />
+
+      <button
+        type="button"
+        className={buttonClass}
+        onClick={onShowShortcuts}
+        aria-label="Keyboard shortcuts"
+        title="Keyboard shortcuts (?)"
+      >
+        ?
       </button>
     </div>
   );
