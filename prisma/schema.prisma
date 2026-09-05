@@ -1,0 +1,73 @@
+// Persistence for saved workflows and their run history.
+//
+// SQLite has no JSON column type, so graph documents and node outputs are
+// stored as JSON text and parsed at the data-access boundary.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Workflow {
+  id        String   @id @default(cuid())
+  name      String
+  /// Serialized { nodes, edges } — the current, editable definition.
+  document  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  runs Run[]
+
+  @@index([updatedAt])
+}
+
+model Run {
+  id String @id @default(cuid())
+
+  /// Null once the workflow is deleted; the run and its snapshot survive.
+  workflowId String?
+  workflow   Workflow? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+
+  /// Name at the time of the run, so history stays readable after a rename.
+  workflowName String
+
+  /// The graph exactly as executed. Kept separate from Workflow.document so
+  /// history stays truthful after the workflow is edited, and so a replay
+  /// re-runs what actually ran rather than what the workflow says today.
+  document String
+
+  status     String // running | success | error | cancelled
+  error      String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+
+  steps RunStep[]
+
+  @@index([startedAt])
+  @@index([workflowId])
+}
+
+model RunStep {
+  id    String @id @default(cuid())
+  runId String
+  run   Run    @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  nodeId   String
+  nodeKind String
+  /// Execution position, so steps replay in the order they ran.
+  position Int
+
+  status     String // success | error | skipped
+  /// Serialized node output; null for failed or skipped steps.
+  output     String?
+  error      String?
+  durationMs Int?
+
+  @@unique([runId, nodeId])
+  @@index([runId, position])
+}

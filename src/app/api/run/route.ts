@@ -1,38 +1,17 @@
 import { z } from "zod";
 import { executeWorkflow } from "@/lib/engine/execute";
-import { NODE_KINDS } from "@/lib/types/workflow";
+import { createRun, finishRun, recordStep } from "@/lib/db/runs";
+import { workflowDocumentSchema } from "@/lib/api/schemas";
 import type { WorkflowDocument } from "@/lib/types/workflow";
 
 /** The engine uses fetch, timers, and crypto — it needs the Node runtime. */
 export const runtime = "nodejs";
 
-const nodeSchema = z.object({
-  id: z.string().min(1),
-  type: z.string().optional(),
-  position: z.object({ x: z.number(), y: z.number() }),
-  data: z.object({
-    kind: z.enum(NODE_KINDS),
-    label: z.string(),
-    config: z.record(z.string(), z.unknown()),
-  }),
-});
-
-const edgeSchema = z.object({
-  id: z.string().min(1),
-  source: z.string().min(1),
-  target: z.string().min(1),
-  sourceHandle: z.string().nullish(),
-  targetHandle: z.string().nullish(),
-});
-
 const requestSchema = z.object({
-  workflow: z.object({
-    version: z.literal(1).default(1),
-    name: z.string().default("Untitled workflow"),
-    nodes: z.array(nodeSchema),
-    edges: z.array(edgeSchema),
-  }),
+  workflow: workflowDocumentSchema,
   inputs: z.record(z.string(), z.string()).optional(),
+  /** Links the run to a saved workflow, when the canvas has one open. */
+  workflowId: z.string().nullish(),
 });
 
 export async function POST(request: Request) {
@@ -50,32 +29,83 @@ export async function POST(request: Request) {
     );
   }
 
-  const encoder = new TextEncoder();
   const document = parsed.workflow as unknown as WorkflowDocument;
+  const kindOf = new Map(document.nodes.map((n) => [n.id, n.data.kind]));
+
+  // Persistence is best-effort: a database problem must not stop the run.
+  let runId: string | undefined;
+  try {
+    runId = await createRun({
+      workflowId: parsed.workflowId ?? null,
+      workflowName: document.name,
+      document,
+    });
+  } catch (error) {
+    console.error("Could not open a run record:", error);
+  }
+
+  const encoder = new TextEncoder();
+  let position = 0;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      const send = (event: unknown) =>
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+
       try {
         for await (const event of executeWorkflow(document, {
           inputs: parsed.inputs,
+          runId,
           // Aborts the run if the client disconnects mid-stream.
           signal: request.signal,
         })) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+          send(event);
+
+          if (!runId) continue;
+
+          try {
+            switch (event.type) {
+              case "node:success":
+              case "node:error":
+              case "node:skipped":
+                await recordStep(runId, {
+                  nodeId: event.nodeId,
+                  nodeKind: kindOf.get(event.nodeId) ?? "unknown",
+                  position: position++,
+                  status: event.type.slice("node:".length),
+                  output: event.type === "node:success" ? event.output : undefined,
+                  error: event.type === "node:error" ? event.error : null,
+                  durationMs: "durationMs" in event ? event.durationMs : null,
+                });
+                break;
+              case "run:finish":
+                await finishRun(runId, {
+                  status: event.status,
+                  error: event.error ?? null,
+                  durationMs: event.durationMs,
+                });
+                break;
+            }
+          } catch (error) {
+            console.error("Could not persist run event:", error);
+          }
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({
-              type: "run:finish",
-              status: "error",
-              durationMs: 0,
-              outputs: {},
-              error: message,
-            })}\n\n`,
-          ),
-        );
+        send({
+          type: "run:finish",
+          status: "error",
+          durationMs: 0,
+          outputs: {},
+          error: message,
+        });
+        if (runId) {
+          try {
+            await finishRun(runId, { status: "error", error: message, durationMs: 0 });
+          } catch {
+            // Already reported to the client; nothing further to do.
+          }
+        }
       } finally {
         controller.close();
       }

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useWorkflowStore } from "@/lib/store/workflow-store";
 import { runWorkflow } from "@/lib/store/run-client";
+import { saveCurrentWorkflow } from "@/lib/store/library-client";
 import type { GraphProblem } from "@/lib/graph/validation";
 import type { WorkflowDocument } from "@/lib/types/workflow";
 
@@ -16,7 +17,15 @@ function slugify(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workflow";
 }
 
-export function Toolbar({ problems }: { problems: GraphProblem[] }) {
+export function Toolbar({
+  problems,
+  libraryOpen,
+  onToggleLibrary,
+}: {
+  problems: GraphProblem[];
+  libraryOpen: boolean;
+  onToggleLibrary: () => void;
+}) {
   const name = useWorkflowStore((s) => s.name);
   const setName = useWorkflowStore((s) => s.setName);
   const clear = useWorkflowStore((s) => s.clear);
@@ -33,6 +42,19 @@ export function Toolbar({ problems }: { problems: GraphProblem[] }) {
   const [showProblems, setShowProblems] = useState(false);
 
   const isRunning = runPhase === "running";
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+
+  async function save() {
+    setSaveState("saving");
+    try {
+      await saveCurrentWorkflow();
+      setSaveState("saved");
+      // Revert the confirmation so the button does not read "Saved" forever.
+      setTimeout(() => setSaveState("idle"), 2000);
+    } catch {
+      setSaveState("failed");
+    }
+  }
 
   function startRun() {
     runController.current?.abort();
@@ -138,6 +160,29 @@ export function Toolbar({ problems }: { problems: GraphProblem[] }) {
         disabled={isRunning || nodeCount === 0}
       >
         {isRunning ? "Running…" : "Run"}
+      </button>
+
+      <button
+        type="button"
+        className={buttonClass}
+        onClick={() => void save()}
+        disabled={saveState === "saving" || nodeCount === 0}
+      >
+        {saveState === "saving"
+          ? "Saving…"
+          : saveState === "saved"
+            ? "Saved"
+            : saveState === "failed"
+              ? "Save failed"
+              : "Save"}
+      </button>
+
+      <button
+        type="button"
+        className={`${buttonClass} ${libraryOpen ? "bg-zinc-100 dark:bg-zinc-800" : ""}`}
+        onClick={onToggleLibrary}
+      >
+        Library
       </button>
 
       <button type="button" className={buttonClass} onClick={exportDocument}>

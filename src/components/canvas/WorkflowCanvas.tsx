@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -17,6 +17,7 @@ import { NodePalette, NODE_DRAG_MIME } from "./NodePalette";
 import { Inspector } from "./Inspector";
 import { WorkflowNodeCard } from "./WorkflowNodeCard";
 import { Toolbar } from "./Toolbar";
+import { LibraryPanel } from "./LibraryPanel";
 import { useWorkflowStore } from "@/lib/store/workflow-store";
 import { validateGraph } from "@/lib/graph/validation";
 import { getDefinition } from "@/lib/nodes/definitions";
@@ -46,6 +47,7 @@ function CanvasInner() {
   // A ref, not state: this only gates the autosave effect and must not itself
   // cause a render.
   const hydrated = useRef(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   // Restore the draft once, client-side, so SSR markup and first paint agree.
   useEffect(() => {
@@ -118,7 +120,11 @@ function CanvasInner() {
       <NodePalette onAdd={addToCenter} />
 
       <div className="relative flex flex-1 flex-col">
-        <Toolbar problems={problems} />
+        <Toolbar
+          problems={problems}
+          libraryOpen={libraryOpen}
+          onToggleLibrary={() => setLibraryOpen((open) => !open)}
+        />
 
         <div ref={wrapper} className="relative flex-1" onDrop={onDrop} onDragOver={onDragOver}>
           <ReactFlow
@@ -158,6 +164,8 @@ function CanvasInner() {
       </div>
 
       <Inspector node={selectedNode} />
+
+      {libraryOpen ? <LibraryPanel onClose={() => setLibraryOpen(false)} /> : null}
     </div>
   );
 }

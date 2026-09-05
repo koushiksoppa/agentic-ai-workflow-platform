@@ -11,6 +11,7 @@ import {
 import { getDefinition } from "@/lib/nodes/definitions";
 import { checkConnection } from "@/lib/graph/validation";
 import type { RunEvent } from "@/lib/engine/types";
+import type { RunDetail } from "@/lib/types/api";
 import type {
   NodeKind,
   NodeRunState,
@@ -40,6 +41,8 @@ export type RunPhase = "idle" | "running" | "success" | "error" | "cancelled";
 
 interface WorkflowState {
   name: string;
+  /** Id of the saved workflow currently open; null for an unsaved draft. */
+  workflowId: string | null;
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   selectedNodeId: string | null;
@@ -69,6 +72,10 @@ interface WorkflowState {
   failRun: (message: string) => void;
   resetRun: () => void;
 
+  setWorkflowId: (id: string | null) => void;
+  /** Restores a past run: its graph snapshot plus each node's recorded result. */
+  loadRun: (run: RunDetail) => void;
+
   clear: () => void;
   toDocument: () => WorkflowDocument;
   loadDocument: (doc: WorkflowDocument) => void;
@@ -87,6 +94,7 @@ function patchNodeRun(
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   name: "Untitled workflow",
+  workflowId: null,
   nodes: [],
   edges: [],
   selectedNodeId: null,
@@ -241,12 +249,53 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       })),
     })),
 
+  setWorkflowId: (id) => set({ workflowId: id }),
+
+  loadRun: (run) =>
+    set(() => {
+      const byNode = new Map(run.steps.map((step) => [step.nodeId, step]));
+      return {
+        name: run.workflowName,
+        // A replay is read-only history, not the saved workflow itself.
+        workflowId: null,
+        nodes: (run.document.nodes ?? []).map((node) => {
+          const step = byNode.get(node.id);
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              run: step
+                ? {
+                    status: step.status as "success" | "error" | "skipped",
+                    error: step.error ?? undefined,
+                    durationMs: step.durationMs ?? undefined,
+                  }
+                : { status: "idle" as const },
+            },
+          };
+        }),
+        edges: run.document.edges ?? [],
+        selectedNodeId: null,
+        rejection: null,
+        runPhase: (run.status === "running" ? "running" : run.status) as never,
+        runError: run.error,
+        runDurationMs: run.durationMs,
+        runOutputs: Object.fromEntries(
+          run.steps
+            .filter((step) => step.status === "success")
+            .map((step) => [step.nodeId, step.output]),
+        ),
+        streaming: {},
+      };
+    }),
+
   clear: () =>
     set({
       nodes: [],
       edges: [],
       selectedNodeId: null,
       rejection: null,
+      workflowId: null,
       runPhase: "idle",
       runError: null,
       runOutputs: {},

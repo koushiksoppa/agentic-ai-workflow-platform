@@ -58,7 +58,11 @@ export async function runWorkflow(signal?: AbortSignal): Promise<void> {
     response = await fetch("/api/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ workflow: store.toDocument() }),
+      body: JSON.stringify({
+        workflow: store.toDocument(),
+        // Links the run record to the saved workflow, when one is open.
+        workflowId: store.workflowId,
+      }),
       signal,
     });
   } catch (error) {

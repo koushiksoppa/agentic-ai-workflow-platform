@@ -40,22 +40,49 @@ Requires Node.js 20 or newer.
 
 ```bash
 npm install
-cp .env.example .env.local
+cp .env.example .env
+npx prisma migrate dev
 npm run dev
 ```
 
 Then open http://localhost:3000.
 
+`prisma migrate dev` creates `prisma/dev.db` and generates the client. No
+database server is involved.
+
+For Model nodes, also create `.env.local` with your `ANTHROPIC_API_KEY` — see
+Configuration below.
+
 ## Configuration
 
 Copy `.env.example` to `.env.local` and fill in:
 
-| Variable | Purpose |
-|---|---|
-| `ANTHROPIC_API_KEY` | Required for model-backed nodes to execute |
-| `DATABASE_URL` | SQLite connection string; defaults to `file:./dev.db` |
+| Variable | File | Purpose |
+|---|---|---|
+| `DATABASE_URL` | `.env` | SQLite path. Read by the Prisma CLI *and* Next, so it cannot live in `.env.local`. |
+| `ANTHROPIC_API_KEY` | `.env.local` | Required for Model nodes to execute. |
 
-`.env.local` is gitignored and must never be committed.
+Both files are gitignored. Next reads env files only at startup, so restart the
+dev server after changing either.
+
+## Persistence
+
+Workflows and their run history are stored in SQLite via Prisma.
+
+Each run stores a **snapshot of the graph as executed**, separate from the
+workflow's current definition. Editing or even deleting a workflow therefore
+leaves its history intact and still openable — run history describes what
+actually ran, not what the workflow says today.
+
+| Table | Holds |
+|---|---|
+| `Workflow` | The current, editable definition |
+| `Run` | One execution: status, timing, and the graph snapshot |
+| `RunStep` | Per-node status, output, error, and duration |
+
+Open the **Library** panel in the toolbar to browse saved workflows and recent
+runs. Selecting a run restores its snapshot to the canvas with each node's
+recorded result.
 
 ## Project structure
 
@@ -126,7 +153,7 @@ requests to internal addresses.
 - [x] Canvas — drag-and-drop board, node palette, connection validation
 - [x] Execution engine — DAG validation, topological execution, step streaming
 - [x] Model-backed nodes — prompt templating, streaming output
-- [ ] Persistence — saved workflows, run history, replay
+- [x] Persistence — saved workflows, run history, replay
 - [ ] Run inspector — per-node input/output, error surfacing
 
 ## Scripts
