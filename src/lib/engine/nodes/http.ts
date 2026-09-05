@@ -1,4 +1,4 @@
-import { resolveTemplate } from "../template";
+import { resolveTemplate, scopeFor } from "../template";
 import { NodeExecutionError, type NodeExecutor } from "../types";
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -25,9 +25,10 @@ function parseHeaders(raw: string): Record<string, string> {
 }
 
 /** Calls an external endpoint. URL, headers, and body all support templates. */
-export const executeHttp: NodeExecutor = async ({ config, outputs, signal }) => {
+export const executeHttp: NodeExecutor = async ({ config, input, outputs, signal }) => {
+  const scope = scopeFor(outputs, input.value);
   const method = String(config.method ?? "GET").toUpperCase();
-  const url = resolveTemplate(String(config.url ?? ""), outputs).trim();
+  const url = resolveTemplate(String(config.url ?? ""), scope).trim();
 
   if (!url) {
     throw new NodeExecutionError("No URL configured.");
@@ -43,8 +44,8 @@ export const executeHttp: NodeExecutor = async ({ config, outputs, signal }) => 
     throw new NodeExecutionError(`Unsupported protocol "${target.protocol}".`);
   }
 
-  const headers = parseHeaders(resolveTemplate(String(config.headers ?? ""), outputs));
-  const body = resolveTemplate(String(config.body ?? ""), outputs);
+  const headers = parseHeaders(resolveTemplate(String(config.headers ?? ""), scope));
+  const body = resolveTemplate(String(config.body ?? ""), scope);
   const sendsBody = !METHODS_WITHOUT_BODY.has(method) && body.trim().length > 0;
 
   if (sendsBody && !Object.keys(headers).some((h) => h.toLowerCase() === "content-type")) {

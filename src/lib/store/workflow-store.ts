@@ -62,6 +62,8 @@ interface WorkflowState {
   runError: string | null;
   runOutputs: Record<string, unknown>;
   runDurationMs: number | null;
+  /** Partial text arriving from streaming nodes, keyed by node id. */
+  streaming: Record<string, string>;
   beginRun: () => void;
   applyRunEvent: (event: RunEvent) => void;
   failRun: (message: string) => void;
@@ -161,6 +163,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   runError: null,
   runOutputs: {},
   runDurationMs: null,
+  streaming: {},
 
   beginRun: () =>
     set((state) => ({
@@ -168,6 +171,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       runError: null,
       runOutputs: {},
       runDurationMs: null,
+      streaming: {},
       // Clear the previous run's badges so stale results are never shown as current.
       nodes: state.nodes.map((node) => ({
         ...node,
@@ -181,7 +185,17 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         case "run:start":
           return {};
         case "node:start":
-          return { nodes: patchNodeRun(state.nodes, event.nodeId, { status: "running" }) };
+          return {
+            nodes: patchNodeRun(state.nodes, event.nodeId, { status: "running" }),
+            streaming: { ...state.streaming, [event.nodeId]: "" },
+          };
+        case "node:delta":
+          return {
+            streaming: {
+              ...state.streaming,
+              [event.nodeId]: (state.streaming[event.nodeId] ?? "") + event.text,
+            },
+          };
         case "node:success":
           return {
             nodes: patchNodeRun(state.nodes, event.nodeId, {
@@ -220,6 +234,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       runError: null,
       runOutputs: {},
       runDurationMs: null,
+      streaming: {},
       nodes: state.nodes.map((node) => ({
         ...node,
         data: { ...node.data, run: undefined },
@@ -236,6 +251,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       runError: null,
       runOutputs: {},
       runDurationMs: null,
+      streaming: {},
     }),
 
   toDocument: () => {

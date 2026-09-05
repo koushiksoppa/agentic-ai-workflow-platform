@@ -10,6 +10,7 @@ export type RunStatus = "success" | "error" | "cancelled";
 export type RunEvent =
   | { type: "run:start"; runId: string; order: string[] }
   | { type: "node:start"; nodeId: string }
+  | { type: "node:delta"; nodeId: string; text: string }
   | { type: "node:success"; nodeId: string; output: unknown; durationMs: number }
   | { type: "node:error"; nodeId: string; error: string; durationMs: number }
   | { type: "node:skipped"; nodeId: string; reason: string }
@@ -38,6 +39,12 @@ export interface ExecutorContext {
   /** Outputs of every node that has already finished, for template resolution. */
   outputs: Record<string, unknown>;
   signal: AbortSignal;
+  /**
+   * Streams partial output while the node is still running. The executor
+   * forwards these as `node:delta` events, so the canvas shows text arriving
+   * rather than a spinner.
+   */
+  onDelta?: (text: string) => void;
 }
 
 export interface ExecutorResult {

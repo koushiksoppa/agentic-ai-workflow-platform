@@ -2,7 +2,7 @@ import { getDefinition } from "@/lib/nodes/definitions";
 import type { NodeConfig, WorkflowDocument, WorkflowEdge } from "@/lib/types/workflow";
 import { getExecutor } from "./registry";
 import { topologicalOrder } from "./topology";
-import type { NodeExecutionInput, RunEvent, RunStatus } from "./types";
+import type { ExecutorResult, NodeExecutionInput, RunEvent, RunStatus } from "./types";
 
 export interface RunOptions {
   /** Overrides for Input nodes, keyed by the node's configured name. */
@@ -18,6 +18,58 @@ function sourceHandleOf(edge: WorkflowEdge, kind: Parameters<typeof getDefinitio
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Runs an executor while forwarding whatever it streams.
+ *
+ * An executor is a plain promise, so it cannot yield. It instead pushes
+ * partial text through `onDelta`; this drains that queue between awaits, so
+ * deltas reach the client *during* the call rather than all at once after it.
+ */
+async function* runWithDeltas(
+  nodeId: string,
+  start: (onDelta: (text: string) => void) => Promise<ExecutorResult>,
+): AsyncGenerator<RunEvent, ExecutorResult> {
+  const queue: string[] = [];
+  let wake: (() => void) | null = null;
+  let finished = false;
+
+  const running = start((text) => {
+    queue.push(text);
+    wake?.();
+  });
+
+  // Settle into a value so a rejection cannot go unhandled while we drain.
+  const settled = running.then(
+    (value) => {
+      finished = true;
+      wake?.();
+      return { ok: true as const, value };
+    },
+    (error: unknown) => {
+      finished = true;
+      wake?.();
+      return { ok: false as const, error };
+    },
+  );
+
+  for (;;) {
+    while (queue.length > 0) {
+      yield { type: "node:delta", nodeId, text: queue.shift()! };
+    }
+    if (finished) break;
+    await new Promise<void>((resolve) => {
+      wake = () => {
+        wake = null;
+        resolve();
+      };
+    });
+  }
+
+  const outcome = await settled;
+  if (!outcome.ok) throw outcome.error;
+  return outcome.value;
 }
 
 /**
@@ -116,13 +168,16 @@ export async function* executeWorkflow(
     const nodeStartedAt = Date.now();
 
     try {
-      const result = await getExecutor(node.data.kind)({
-        nodeId,
-        config,
-        input,
-        outputs,
-        signal,
-      });
+      const result = yield* runWithDeltas(nodeId, (onDelta) =>
+        getExecutor(node.data.kind)({
+          nodeId,
+          config,
+          input,
+          outputs,
+          signal,
+          onDelta,
+        }),
+      );
 
       outputs[nodeId] = result.output;
       activeHandles.set(

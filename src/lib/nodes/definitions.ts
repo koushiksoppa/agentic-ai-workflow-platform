@@ -1,15 +1,8 @@
 import { z } from "zod";
 import type { NodeConfig, NodeKind, PortSpec } from "@/lib/types/workflow";
+import { DEFAULT_MODEL, MODEL_OPTIONS } from "./models";
 
-/**
- * Model ids are exact strings - never append a date suffix. Opus is the
- * default; the cheaper tiers are offered for high-volume or simple steps.
- */
-export const MODEL_OPTIONS = [
-  { value: "claude-opus-5", label: "Claude Opus 5" },
-  { value: "claude-sonnet-5", label: "Claude Sonnet 5" },
-  { value: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
-] as const;
+export { MODEL_OPTIONS } from "./models";
 
 export const EFFORT_OPTIONS = [
   { value: "low", label: "Low" },
@@ -109,7 +102,7 @@ export const NODE_DEFINITIONS: Record<NodeKind, NodeDefinition> = {
       effort: z.enum(EFFORT_VALUES),
     }),
     defaultConfig: {
-      model: "claude-opus-5",
+      model: DEFAULT_MODEL,
       system: "",
       prompt: "",
       maxTokens: 16000,
@@ -148,7 +141,7 @@ export const NODE_DEFINITIONS: Record<NodeKind, NodeDefinition> = {
         step: 1000,
       },
     ],
-    summary: (c) => String(c.model || "claude-opus-5"),
+    summary: (c) => String(c.model || DEFAULT_MODEL),
   },
 
   http: {

@@ -218,12 +218,19 @@ describe("executeWorkflow", () => {
     expect(finish(events).error).toMatch(/cycle/);
   });
 
-  it("fails a Model node with a clear not-yet-implemented message", async () => {
-    const events = await runToCompletion(doc([node("llm_1", "llm", { prompt: "hi" })], []));
-    const failure = events.find((e) => e.type === "node:error");
-    expect(failure).toBeDefined();
-    if (failure && failure.type === "node:error") {
-      expect(failure.error).toMatch(/not wired up yet/);
+  it("fails a Model node with actionable guidance when no API key is configured", async () => {
+    const previous = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      const events = await runToCompletion(doc([node("llm_1", "llm", { prompt: "hi" })], []));
+      const failure = events.find((e) => e.type === "node:error");
+      expect(failure).toBeDefined();
+      if (failure && failure.type === "node:error") {
+        expect(failure.error).toMatch(/ANTHROPIC_API_KEY/);
+      }
+      expect(finish(events).status).toBe("error");
+    } finally {
+      if (previous !== undefined) process.env.ANTHROPIC_API_KEY = previous;
     }
   });
 

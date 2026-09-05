@@ -73,6 +73,36 @@ Node executors live one-per-file under `src/lib/engine/nodes/` and are registere
 `registry.ts`. Adding a node type means four things: a type definition, an executor, a
 registry entry, and a canvas component.
 
+## Model nodes
+
+A Model node sends a prompt to Claude and returns the response text.
+
+**Templating.** Prompts and system prompts resolve `{{...}}` references before
+the request is sent:
+
+- `{{input}}` — the value arriving on this node's incoming edges
+- `{{node_id.field}}` — any field of any upstream node's result, e.g.
+  `{{http_1.body.title}}`
+
+An unresolvable reference fails the node rather than sending a prompt with a
+hole in it.
+
+**Models.** Parameters are gated per model, because the API rejects a request
+carrying an option the model does not support:
+
+| Model | Adaptive thinking | Effort |
+|---|---|---|
+| Claude Opus 5 (default) | yes | yes |
+| Claude Sonnet 5 | yes | yes |
+| Claude Haiku 4.5 | no | no |
+
+**Streaming.** Responses stream, so partial text appears on the node while it
+is still generating. Large `max_tokens` values would otherwise risk an HTTP
+timeout on a single blocking request.
+
+**Cost.** Model nodes spend real money on every run. `usage` (input and output
+tokens) is returned with each result and shown in the inspector.
+
 ## Security model
 
 Two nodes execute what the workflow tells them to, and both treat the workflow
@@ -95,7 +125,7 @@ requests to internal addresses.
 - [x] Application foundation — Next.js, TypeScript, Tailwind, tooling
 - [x] Canvas — drag-and-drop board, node palette, connection validation
 - [x] Execution engine — DAG validation, topological execution, step streaming
-- [ ] Model-backed nodes — prompt templating, streaming output
+- [x] Model-backed nodes — prompt templating, streaming output
 - [ ] Persistence — saved workflows, run history, replay
 - [ ] Run inspector — per-node input/output, error surfacing
 

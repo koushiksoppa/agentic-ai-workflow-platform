@@ -3,7 +3,11 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { getDefinition } from "@/lib/nodes/definitions";
+import { useWorkflowStore } from "@/lib/store/workflow-store";
 import type { NodeRunStatus, PortSpec, WorkflowNode } from "@/lib/types/workflow";
+
+/** How much of a streaming response to show on the card itself. */
+const STREAM_TAIL = 140;
 
 const STATUS_RING: Record<NodeRunStatus, string> = {
   idle: "",
@@ -48,9 +52,10 @@ function PortRow({
   );
 }
 
-function WorkflowNodeCardImpl({ data, selected }: NodeProps<WorkflowNode>) {
+function WorkflowNodeCardImpl({ id, data, selected }: NodeProps<WorkflowNode>) {
   const definition = getDefinition(data.kind);
   const status = data.run?.status ?? "idle";
+  const streamed = useWorkflowStore((s) => s.streaming[id]);
 
   return (
     <div
@@ -76,6 +81,13 @@ function WorkflowNodeCardImpl({ data, selected }: NodeProps<WorkflowNode>) {
           {definition.summary(data.config)}
         </p>
       </div>
+
+      {status === "running" && streamed ? (
+        <p className="mx-3 mt-2 max-h-16 overflow-hidden rounded bg-zinc-50 px-2 py-1 font-mono text-[10px] leading-4 text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
+          {/* Tail, not head — the newest tokens are the interesting ones. */}
+          {streamed.length > STREAM_TAIL ? `…${streamed.slice(-STREAM_TAIL)}` : streamed}
+        </p>
+      ) : null}
 
       {data.run?.status === "error" && data.run.error ? (
         <p className="mx-3 mt-2 truncate rounded bg-rose-50 px-2 py-1 text-[11px] text-rose-700 dark:bg-rose-950 dark:text-rose-300">

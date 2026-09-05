@@ -68,3 +68,17 @@ export function hasReferences(text: string): boolean {
   REFERENCE.lastIndex = 0;
   return REFERENCE.test(text);
 }
+
+/**
+ * Template scope for a node: every completed node's output, plus `input` bound
+ * to this node's own incoming value.
+ *
+ * `input` cannot collide with a node id — ids are always suffixed (`input_1`),
+ * so the bare name is free.
+ */
+export function scopeFor(
+  outputs: Record<string, unknown>,
+  inputValue: unknown,
+): Record<string, unknown> {
+  return inputValue === undefined ? outputs : { ...outputs, input: inputValue };
+}
