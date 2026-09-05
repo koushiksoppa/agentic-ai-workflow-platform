@@ -28,6 +28,7 @@ run is inspected by clicking the node that failed.
 | Canvas | React Flow (`@xyflow/react`) |
 | State | Zustand |
 | Validation | Zod |
+| Tests | Vitest |
 | Persistence | Prisma + SQLite |
 
 SQLite is deliberate — the project runs with no database server, no containers, and no
@@ -75,7 +76,7 @@ registry entry, and a canvas component.
 ## Roadmap
 
 - [x] Application foundation — Next.js, TypeScript, Tailwind, tooling
-- [ ] Canvas — drag-and-drop board, node palette, connection validation
+- [x] Canvas — drag-and-drop board, node palette, connection validation
 - [ ] Execution engine — DAG validation, topological execution, step streaming
 - [ ] Model-backed nodes — prompt templating, streaming output
 - [ ] Persistence — saved workflows, run history, replay
@@ -87,4 +88,9 @@ registry entry, and a canvas component.
 npm run dev      # development server
 npm run build    # production build
 npm run lint     # eslint
+npm test         # unit tests (vitest)
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
