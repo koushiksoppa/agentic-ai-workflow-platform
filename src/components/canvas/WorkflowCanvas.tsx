@@ -19,6 +19,7 @@ import { WorkflowNodeCard } from "./WorkflowNodeCard";
 import { Toolbar, type SaveState } from "./Toolbar";
 import { LibraryPanel } from "./LibraryPanel";
 import { ShortcutsOverlay } from "./ShortcutsOverlay";
+import { RunInputsBar } from "./RunInputsBar";
 import { useWorkflowStore } from "@/lib/store/workflow-store";
 import { runWorkflow } from "@/lib/store/run-client";
 import { saveCurrentWorkflow } from "@/lib/store/library-client";
@@ -42,6 +43,7 @@ function CanvasInner() {
   const selectNode = useWorkflowStore((s) => s.selectNode);
   const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId);
   const rejection = useWorkflowStore((s) => s.rejection);
+  const runPhase = useWorkflowStore((s) => s.runPhase);
   const dismissRejection = useWorkflowStore((s) => s.dismissRejection);
   const loadDocument = useWorkflowStore((s) => s.loadDocument);
   const toDocument = useWorkflowStore((s) => s.toDocument);
@@ -216,6 +218,8 @@ function CanvasInner() {
           onRun={startRun}
           onCancel={cancelRun}
         />
+
+        <RunInputsBar disabled={runPhase === "running"} />
 
         <div ref={wrapper} className="relative flex-1" onDrop={onDrop} onDragOver={onDragOver}>
           <ReactFlow

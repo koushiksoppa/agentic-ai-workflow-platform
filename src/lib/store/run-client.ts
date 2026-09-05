@@ -62,6 +62,8 @@ export async function runWorkflow(signal?: AbortSignal): Promise<void> {
         workflow: store.toDocument(),
         // Links the run record to the saved workflow, when one is open.
         workflowId: store.workflowId,
+        // Only names the user edited; the rest use their node's own value.
+        inputs: store.inputValues,
       }),
       signal,
     });

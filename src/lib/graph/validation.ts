@@ -135,6 +135,23 @@ export function validateGraph(
     problems.push({ message: "No Output node — nothing captures a result." });
   }
 
+  // Run-time overrides are addressed by name, so duplicates are ambiguous.
+  const inputNames = new Map<string, string[]>();
+  for (const node of nodes) {
+    if (node.data.kind !== "input") continue;
+    const name = String(node.data.config.name ?? "").trim();
+    if (!name) continue;
+    inputNames.set(name, [...(inputNames.get(name) ?? []), node.id]);
+  }
+  for (const [name, ids] of inputNames) {
+    if (ids.length > 1) {
+      problems.push({
+        nodeId: ids[1],
+        message: `More than one Input node is named "${name}". Run inputs are addressed by name, so give each a distinct one.`,
+      });
+    }
+  }
+
   for (const node of nodes) {
     const connectedIn = edges.some((e) => e.target === node.id);
     const connectedOut = edges.some((e) => e.source === node.id);

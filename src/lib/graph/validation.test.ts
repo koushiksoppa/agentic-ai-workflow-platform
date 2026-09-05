@@ -194,6 +194,36 @@ describe("validateGraph", () => {
     expect(validateGraph(nodes, edges)).toEqual([]);
   });
 
+  it("flags two Input nodes sharing a name", () => {
+    // Run overrides are addressed by name, so a duplicate is ambiguous.
+    const nodes = [
+      node("input_1", "input", { name: "topic" }),
+      node("input_2", "input", { name: "topic" }),
+      node("output_1", "output"),
+    ];
+    const edges = [
+      edge("input_1", "output_1", "value", "in"),
+      edge("input_2", "output_1", "value", "in"),
+    ];
+    const problems = validateGraph(nodes, edges);
+    expect(problems.some((p) => /More than one Input node is named "topic"/.test(p.message))).toBe(
+      true,
+    );
+  });
+
+  it("allows Input nodes with distinct names", () => {
+    const nodes = [
+      node("input_1", "input", { name: "topic" }),
+      node("input_2", "input", { name: "tone" }),
+      node("output_1", "output"),
+    ];
+    const edges = [
+      edge("input_1", "output_1", "value", "in"),
+      edge("input_2", "output_1", "value", "in"),
+    ];
+    expect(validateGraph(nodes, edges).some((p) => /More than one/.test(p.message))).toBe(false);
+  });
+
   it("passes a complete, connected graph", () => {
     const nodes = [node("input_1", "input"), node("output_1", "output")];
     const edges = [edge("input_1", "output_1", "value", "in")];

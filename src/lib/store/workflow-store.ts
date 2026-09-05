@@ -68,6 +68,14 @@ interface WorkflowState {
   runInputs: Record<string, unknown>;
   /** Branch decisions and skip reasons, keyed by node id. */
   runMetadata: Record<string, Record<string, unknown>>;
+  /**
+   * Values typed into the run bar, keyed by Input node name. Only names the
+   * user actually edited are held here; the rest fall back to the node's own
+   * configured value, which is exactly the engine's override semantics.
+   */
+  inputValues: Record<string, string>;
+  setInputValue: (name: string, value: string) => void;
+  clearInputValues: () => void;
   runDurationMs: number | null;
   /** Partial text arriving from streaming nodes, keyed by node id. */
   streaming: Record<string, string>;
@@ -176,8 +184,14 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   runOutputs: {},
   runInputs: {},
   runMetadata: {},
+  inputValues: {},
   runDurationMs: null,
   streaming: {},
+
+  setInputValue: (name, value) =>
+    set((state) => ({ inputValues: { ...state.inputValues, [name]: value } })),
+
+  clearInputValues: () => set({ inputValues: {} }),
 
   beginRun: () =>
     set((state) => ({
@@ -342,6 +356,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       runOutputs: {},
       runInputs: {},
       runMetadata: {},
+      inputValues: {},
       runDurationMs: null,
       streaming: {},
     }),
@@ -353,6 +368,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   loadDocument: (doc) =>
     set({
+      inputValues: {},
       name: doc.name ?? "Untitled workflow",
       nodes: doc.nodes ?? [],
       edges: doc.edges ?? [],
