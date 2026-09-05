@@ -36,6 +36,10 @@ export interface NodeRunState {
   error?: string;
   /** Populated when skipped: which upstream decision excluded this node. */
   reason?: string;
+  /** 1-based attempt currently running, when the node is being retried. */
+  attempt?: number;
+  /** Total attempts allowed, so the UI can show "2 of 3". */
+  attempts?: number;
   /** Wall-clock duration of the last run, in milliseconds. */
   durationMs?: number;
 }

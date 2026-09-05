@@ -140,12 +140,20 @@ function NodeResult({ node }: { node: WorkflowNode }) {
         >
           {run.status}
           {run.durationMs !== undefined ? ` · ${run.durationMs}ms` : ""}
+          {run.attempts && run.attempts > 1 ? ` · ${run.attempts} attempts` : ""}
         </span>
       </div>
 
       {run.status === "error" && run.error ? (
         <p className="mt-2 rounded bg-rose-50 px-2 py-1.5 text-[11px] leading-5 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
           {run.error}
+        </p>
+      ) : null}
+
+      {run.status === "running" && run.attempt && run.attempts ? (
+        <p className="mt-2 text-[11px] leading-5 text-amber-600 dark:text-amber-400">
+          Retrying — attempt {run.attempt} of {run.attempts}.
+          {run.reason ? ` ${run.reason}` : ""}
         </p>
       ) : null}
 

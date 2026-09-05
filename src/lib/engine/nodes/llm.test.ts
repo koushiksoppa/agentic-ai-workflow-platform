@@ -12,6 +12,7 @@ vi.mock("@anthropic-ai/sdk", () => {
   class RateLimitError extends APIError {}
   class BadRequestError extends APIError {}
   class APIConnectionError extends APIError {}
+  class InternalServerError extends APIError {}
 
   class Anthropic {
     messages = { stream: streamMock };
@@ -22,6 +23,7 @@ vi.mock("@anthropic-ai/sdk", () => {
     static RateLimitError = RateLimitError;
     static BadRequestError = BadRequestError;
     static APIConnectionError = APIConnectionError;
+    static InternalServerError = InternalServerError;
   }
 
   return { default: Anthropic };
@@ -31,6 +33,8 @@ const { executeLlm } = await import("./llm");
 const Anthropic = (await import("@anthropic-ai/sdk")).default as unknown as {
   AuthenticationError: new (m: string) => Error;
   RateLimitError: new (m: string) => Error;
+  BadRequestError: new (m: string) => Error;
+  InternalServerError: new (m: string) => Error;
 };
 
 interface FakeMessage {

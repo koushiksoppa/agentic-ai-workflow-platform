@@ -86,6 +86,13 @@ function WorkflowNodeCardImpl({ id, data, selected }: NodeProps<WorkflowNode>) {
         </p>
       </div>
 
+      {/* Retrying is a distinct state from simply running; say so. */}
+      {status === "running" && data.run?.attempt && data.run.attempts ? (
+        <p className="mx-3 mt-2 text-[10px] text-amber-600 dark:text-amber-400">
+          Attempt {data.run.attempt} of {data.run.attempts}
+        </p>
+      ) : null}
+
       {status === "running" && streamed ? (
         <p className="mx-3 mt-2 max-h-16 overflow-hidden rounded bg-zinc-50 px-2 py-1 font-mono text-[10px] leading-4 text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
           {/* Tail, not head — the newest tokens are the interesting ones. */}

@@ -25,6 +25,19 @@ function clampTokens(value: unknown): number {
   return Math.min(MAX_TOKENS, Math.max(MIN_TOKENS, Math.trunc(n)));
 }
 
+/**
+ * Whether another attempt could plausibly succeed. Authentication, permission
+ * and bad-request failures are deterministic, and every model call costs
+ * money, so only genuinely transient conditions are retried.
+ */
+function retryable(error: unknown): boolean {
+  return (
+    error instanceof Anthropic.RateLimitError ||
+    error instanceof Anthropic.APIConnectionError ||
+    error instanceof Anthropic.InternalServerError
+  );
+}
+
 /** Turns SDK errors into messages that mean something on a node card. */
 function describe(error: unknown): string {
   if (error instanceof Anthropic.AuthenticationError) {
@@ -99,7 +112,7 @@ export const executeLlm: NodeExecutor = async ({
     message = await stream.finalMessage();
   } catch (error) {
     if (signal.aborted) throw new NodeExecutionError("Run cancelled.");
-    throw new NodeExecutionError(describe(error));
+    throw new NodeExecutionError(describe(error), { retryable: retryable(error) });
   }
 
   // A refusal is a 200 with no usable content — check before reading it.

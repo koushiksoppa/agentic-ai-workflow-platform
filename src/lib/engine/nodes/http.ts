@@ -4,7 +4,7 @@ import {
   MAX_RESPONSE_BYTES,
   MAX_TIMEOUT_MS,
   MIN_TIMEOUT_MS,
-} from "@/lib/nodes/http-config";
+} from "@/lib/nodes/execution-config";
 import { resolveTemplate, scopeFor } from "../template";
 import { NodeExecutionError, type NodeExecutor } from "../types";
 
@@ -161,15 +161,19 @@ export const executeHttp: NodeExecutor = async ({ config, input, outputs, signal
       });
     } catch (error) {
       if (timeout.aborted) {
-        throw new NodeExecutionError(`Request timed out after ${timeoutMs / 1000}s.`);
+        throw new NodeExecutionError(`Request timed out after ${timeoutMs / 1000}s.`, {
+          retryable: true,
+        });
       }
       if (signal.aborted) {
         throw new NodeExecutionError("Run cancelled.");
       }
+      // A connection-level failure is usually transient.
       throw new NodeExecutionError(
         `Request to ${redactUrl(target)} failed: ${
           error instanceof Error ? error.message : String(error)
         }`,
+        { retryable: true },
       );
     }
 
@@ -200,8 +204,11 @@ export const executeHttp: NodeExecutor = async ({ config, input, outputs, signal
   }
 
   if (!response.ok) {
+    // 5xx and 429 may succeed on a retry; a 4xx will fail identically.
+    const retryable = response.status >= 500 || response.status === 429;
     throw new NodeExecutionError(
       `${method} ${redactUrl(target)} responded ${response.status} ${response.statusText}`.trim(),
+      { retryable },
     );
   }
 

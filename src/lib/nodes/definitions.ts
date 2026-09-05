@@ -1,7 +1,52 @@
 import { z } from "zod";
 import type { NodeConfig, NodeKind, PortSpec } from "@/lib/types/workflow";
 import { DEFAULT_MODEL, MODEL_OPTIONS } from "./models";
-import { DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, MIN_TIMEOUT_MS } from "./http-config";
+import {
+  DEFAULT_TIMEOUT_MS,
+  MAX_RETRIES,
+  MAX_TIMEOUT_MS,
+  MIN_TIMEOUT_MS,
+} from "./execution-config";
+
+/**
+ * Reliability settings shared by the nodes that perform I/O. Both are optional
+ * so workflows saved before they existed remain valid.
+ */
+const reliabilitySchema = {
+  timeoutMs: z
+    .number()
+    .int()
+    .min(MIN_TIMEOUT_MS, `Minimum ${MIN_TIMEOUT_MS}ms`)
+    .max(MAX_TIMEOUT_MS, `Maximum ${MAX_TIMEOUT_MS}ms`)
+    .optional(),
+  retries: z
+    .number()
+    .int()
+    .min(0, "Cannot be negative")
+    .max(MAX_RETRIES, `At most ${MAX_RETRIES}`)
+    .optional(),
+};
+
+const RELIABILITY_FIELDS: FieldSpec[] = [
+  {
+    key: "timeoutMs",
+    label: "Timeout (ms)",
+    kind: "number",
+    min: MIN_TIMEOUT_MS,
+    max: MAX_TIMEOUT_MS,
+    step: 1000,
+    help: "Applies to the whole attempt.",
+  },
+  {
+    key: "retries",
+    label: "Retries",
+    kind: "number",
+    min: 0,
+    max: MAX_RETRIES,
+    step: 1,
+    help: "Extra attempts after a transient failure. Deterministic errors are never retried.",
+  },
+];
 
 export { MODEL_OPTIONS } from "./models";
 
@@ -101,6 +146,7 @@ export const NODE_DEFINITIONS: Record<NodeKind, NodeDefinition> = {
       prompt: z.string().min(1, "Prompt is required"),
       maxTokens: z.number().int().min(1).max(128000),
       effort: z.enum(EFFORT_VALUES),
+      ...reliabilitySchema,
     }),
     defaultConfig: {
       model: DEFAULT_MODEL,
@@ -108,6 +154,8 @@ export const NODE_DEFINITIONS: Record<NodeKind, NodeDefinition> = {
       prompt: "",
       maxTokens: 16000,
       effort: "high",
+      timeoutMs: 120000,
+      retries: 1,
     },
     fields: [
       { key: "model", label: "Model", kind: "select", options: MODEL_OPTIONS },
@@ -141,6 +189,7 @@ export const NODE_DEFINITIONS: Record<NodeKind, NodeDefinition> = {
         max: 128000,
         step: 1000,
       },
+      ...RELIABILITY_FIELDS,
     ],
     summary: (c) => String(c.model || DEFAULT_MODEL),
   },
@@ -159,13 +208,7 @@ export const NODE_DEFINITIONS: Record<NodeKind, NodeDefinition> = {
       url: z.string().min(1, "URL is required"),
       headers: z.string(),
       body: z.string(),
-      // Optional so workflows saved before timeouts were configurable stay valid.
-      timeoutMs: z
-        .number()
-        .int()
-        .min(MIN_TIMEOUT_MS, `Minimum ${MIN_TIMEOUT_MS}ms`)
-        .max(MAX_TIMEOUT_MS, `Maximum ${MAX_TIMEOUT_MS}ms`)
-        .optional(),
+      ...reliabilitySchema,
     }),
     defaultConfig: {
       method: "GET",
@@ -173,6 +216,7 @@ export const NODE_DEFINITIONS: Record<NodeKind, NodeDefinition> = {
       headers: "{}",
       body: "",
       timeoutMs: DEFAULT_TIMEOUT_MS,
+      retries: 2,
     },
     fields: [
       {
@@ -190,15 +234,7 @@ export const NODE_DEFINITIONS: Record<NodeKind, NodeDefinition> = {
       { key: "url", label: "URL", kind: "text", placeholder: "https://api.example.com/items" },
       { key: "headers", label: "Headers (JSON)", kind: "textarea", rows: 3, mono: true },
       { key: "body", label: "Body", kind: "textarea", rows: 4, mono: true, help: TEMPLATE_HELP },
-      {
-        key: "timeoutMs",
-        label: "Timeout (ms)",
-        kind: "number",
-        min: MIN_TIMEOUT_MS,
-        max: MAX_TIMEOUT_MS,
-        step: 1000,
-        help: "Applies to the whole request, including redirects.",
-      },
+      ...RELIABILITY_FIELDS,
     ],
     summary: (c) => `${String(c.method || "GET")} ${String(c.url || "not set")}`,
   },

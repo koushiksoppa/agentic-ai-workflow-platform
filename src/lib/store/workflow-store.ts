@@ -206,6 +206,16 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             streaming: { ...state.streaming, [event.nodeId]: "" },
             runInputs: { ...state.runInputs, [event.nodeId]: event.input },
           };
+        case "node:retry":
+          // Keep the node in the running state; only the attempt counter moves.
+          return {
+            nodes: patchNodeRun(state.nodes, event.nodeId, {
+              status: "running",
+              attempt: event.attempt + 1,
+              attempts: event.attempts,
+              reason: `Attempt ${event.attempt} failed: ${event.error}`,
+            }),
+          };
         case "node:delta":
           return {
             streaming: {
@@ -218,6 +228,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             nodes: patchNodeRun(state.nodes, event.nodeId, {
               status: "success",
               durationMs: event.durationMs,
+              attempts:
+                typeof event.metadata?.attempts === "number"
+                  ? event.metadata.attempts
+                  : undefined,
             }),
             runOutputs: { ...state.runOutputs, [event.nodeId]: event.output },
             runMetadata: event.metadata

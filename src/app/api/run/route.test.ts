@@ -115,6 +115,44 @@ describe("POST /api/run — run record lifecycle", () => {
   });
 });
 
+describe("POST /api/run — duplicate execution", () => {
+  it("refuses a second concurrent run of the same saved workflow", async () => {
+    // Hold the first run open so the second arrives while it is in flight.
+    let release: () => void = () => {};
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    createRun.mockImplementation(async () => {
+      await blocked;
+      return "run_1";
+    });
+
+    const first = POST(runRequest({ workflow: workflow(), workflowId: "wf_1" }));
+    const second = await POST(runRequest({ workflow: workflow(), workflowId: "wf_1" }));
+
+    expect(second.status).toBe(409);
+    expect(((await second.json()) as { error: string }).error).toMatch(/already running/);
+
+    release();
+    await drain(await first);
+  });
+
+  it("releases the lock once the run finishes", async () => {
+    await drain(await POST(runRequest({ workflow: workflow(), workflowId: "wf_2" })));
+    const second = await POST(runRequest({ workflow: workflow(), workflowId: "wf_2" }));
+    expect(second.status).toBe(200);
+    await drain(second);
+  });
+
+  it("does not lock unsaved drafts against each other", async () => {
+    const a = await POST(runRequest({ workflow: workflow() }));
+    const b = await POST(runRequest({ workflow: workflow() }));
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    await Promise.all([drain(a), drain(b)]);
+  });
+});
+
 describe("POST /api/run — persistence is best effort", () => {
   it("still runs and streams when the run record cannot be opened", async () => {
     createRun.mockRejectedValue(new Error("database is locked"));

@@ -1,5 +1,6 @@
 import { getDefinition } from "@/lib/nodes/definitions";
 import { describeConfigIssues, validateNodeConfig } from "@/lib/nodes/validate";
+import { resolveRetries, resolveTimeout, retryDelay } from "@/lib/nodes/execution-config";
 import type {
   NodeConfig,
   WorkflowDocument,
@@ -8,7 +9,7 @@ import type {
 } from "@/lib/types/workflow";
 import { getExecutor } from "./registry";
 import { topologicalOrder } from "./topology";
-import { NodeExecutionError } from "./types";
+import { NodeExecutionError, isRetryable } from "./types";
 import type { ExecutorResult, NodeExecutionInput, RunEvent, RunStatus } from "./types";
 
 export interface RunOptions {
@@ -64,6 +65,20 @@ function explainSkip(
   }
 
   return "No upstream branch reached this node.";
+}
+
+/** Waits, but wakes immediately if the run is cancelled. */
+function delay(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(finish, ms);
+    function finish() {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    }
+    signal.addEventListener("abort", finish, { once: true });
+  });
 }
 
 /**
@@ -213,6 +228,9 @@ export async function* executeWorkflow(
     yield { type: "node:start", nodeId, input: input.value };
     const nodeStartedAt = Date.now();
 
+    const attempts = resolveRetries(config.retries) + 1;
+    const timeoutMs = resolveTimeout(config.timeoutMs);
+
     try {
       // Enforced here rather than at save time: a workflow may legitimately be
       // saved half-configured, but it must not execute that way.
@@ -221,16 +239,61 @@ export async function* executeWorkflow(
         throw new NodeExecutionError(describeConfigIssues(check.issues));
       }
 
-      const result = yield* runWithDeltas(nodeId, (onDelta) =>
-        getExecutor(node.data.kind)({
-          nodeId,
-          config,
-          input,
-          outputs,
-          signal,
-          onDelta,
-        }),
-      );
+      let result: ExecutorResult | undefined;
+      let attempt = 0;
+
+      for (;;) {
+        attempt += 1;
+
+        // A per-node deadline on top of the run signal. Executors that honour
+        // the signal stop immediately; the run moves on regardless.
+        const nodeTimeout = AbortSignal.timeout(timeoutMs);
+        const nodeSignal = AbortSignal.any([signal, nodeTimeout]);
+
+        try {
+          result = yield* runWithDeltas(nodeId, (onDelta) =>
+            getExecutor(node.data.kind)({
+              nodeId,
+              config,
+              input,
+              outputs,
+              signal: nodeSignal,
+              onDelta,
+            }),
+          );
+          break;
+        } catch (raw) {
+          // A cancelled run must never be retried.
+          if (signal.aborted) throw raw;
+
+          // A node that ran out of time reports the deadline rather than
+          // whatever the executor happened to throw on abort. It stays
+          // retryable, so it still flows through the decision below rather
+          // than short-circuiting out of the loop.
+          const error = nodeTimeout.aborted
+            ? new NodeExecutionError(`Timed out after ${timeoutMs / 1000}s.`, {
+                retryable: true,
+              })
+            : raw;
+
+          if (attempt >= attempts || !isRetryable(error)) throw error;
+
+          const wait = retryDelay(attempt);
+          yield {
+            type: "node:retry",
+            nodeId,
+            attempt,
+            attempts,
+            delayMs: wait,
+            error: errorMessage(error),
+          };
+          await delay(wait, signal);
+          if (signal.aborted) throw error;
+        }
+      }
+
+      const metadata =
+        attempt > 1 ? { ...result.metadata, attempts: attempt } : result.metadata;
 
       outputs[nodeId] = result.output;
       activeHandles.set(
@@ -243,7 +306,7 @@ export async function* executeWorkflow(
         nodeId,
         output: result.output,
         durationMs: Date.now() - nodeStartedAt,
-        ...(result.metadata ? { metadata: result.metadata } : {}),
+        ...(metadata ? { metadata } : {}),
       };
     } catch (error) {
       anyFailed = true;

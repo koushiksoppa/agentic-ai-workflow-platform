@@ -8,6 +8,19 @@ import type { WorkflowDocument } from "@/lib/types/workflow";
 /** The engine uses fetch, timers, and crypto — it needs the Node runtime. */
 export const runtime = "nodejs";
 
+/**
+ * Saved workflows with a run in flight.
+ *
+ * The Run button is disabled while a run is going, but that only guards one
+ * tab. This stops the same saved workflow being executed twice concurrently,
+ * which would interleave two sets of step rows and bill two sets of model
+ * calls. Unsaved drafts have no id and are not tracked.
+ *
+ * Process-local, which matches the single-process SQLite deployment. A
+ * multi-instance deployment would need this in the database.
+ */
+const runningWorkflows = new Set<string>();
+
 const requestSchema = z.object({
   workflow: workflowDocumentSchema,
   inputs: z.record(z.string(), z.string()).optional(),
@@ -32,6 +45,17 @@ export async function POST(request: Request) {
 
   const document = parsed.workflow as unknown as WorkflowDocument;
   const kindOf = new Map(document.nodes.map((n) => [n.id, n.data.kind]));
+
+  const lockId = parsed.workflowId ?? null;
+  if (lockId) {
+    if (runningWorkflows.has(lockId)) {
+      return Response.json(
+        { error: "This workflow is already running. Wait for it to finish, or cancel it." },
+        { status: 409 },
+      );
+    }
+    runningWorkflows.add(lockId);
+  }
 
   // Persistence is best-effort: a database problem must not stop the run.
   let runId: string | undefined;
@@ -139,6 +163,8 @@ export async function POST(request: Request) {
         });
         await closeRun("error", message, Date.now() - startedAt);
       } finally {
+        if (lockId) runningWorkflows.delete(lockId);
+
         // Backstop: if the generator was abandoned before emitting a terminal
         // event — a disconnect being the usual cause — the run would otherwise
         // stay "running" forever.

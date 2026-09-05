@@ -16,6 +16,8 @@ export interface NodeMetadata {
   expression?: string;
   /** Skipped nodes: why the run never reached them. */
   skipReason?: string;
+  /** How many attempts the node took; present only when it retried. */
+  attempts?: number;
 }
 
 /**
@@ -27,6 +29,15 @@ export type RunEvent =
   | { type: "run:start"; runId: string; order: string[] }
   | { type: "node:start"; nodeId: string; input: unknown }
   | { type: "node:delta"; nodeId: string; text: string }
+  | {
+      type: "node:retry";
+      nodeId: string;
+      /** 1-based number of the attempt that just failed. */
+      attempt: number;
+      attempts: number;
+      delayMs: number;
+      error: string;
+    }
   | {
       type: "node:success";
       nodeId: string;
@@ -83,10 +94,25 @@ export interface ExecutorResult {
 
 export type NodeExecutor = (ctx: ExecutorContext) => Promise<ExecutorResult>;
 
-/** Thrown by executors to report a clean, user-facing failure. */
+/**
+ * Thrown by executors to report a clean, user-facing failure.
+ *
+ * `retryable` decides whether the engine will try again. It defaults to false
+ * on purpose: a bad prompt, an invalid URL, or a 400 will fail identically
+ * every time, and re-running a model call costs real money. Executors opt in
+ * for genuinely transient conditions — timeouts, connection failures, rate
+ * limits, and 5xx responses.
+ */
 export class NodeExecutionError extends Error {
-  constructor(message: string) {
+  readonly retryable: boolean;
+
+  constructor(message: string, options: { retryable?: boolean } = {}) {
     super(message);
     this.name = "NodeExecutionError";
+    this.retryable = options.retryable ?? false;
   }
+}
+
+export function isRetryable(error: unknown): boolean {
+  return error instanceof NodeExecutionError && error.retryable;
 }
