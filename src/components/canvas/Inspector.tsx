@@ -81,6 +81,57 @@ function Field({
   );
 }
 
+function preview(value: unknown): string {
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value, null, 2) ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
+
+/** Last run's outcome for this node: status, timing, error, and output. */
+function NodeResult({ node }: { node: WorkflowNode }) {
+  const output = useWorkflowStore((s) => s.runOutputs[node.id]);
+  const run = node.data.run;
+
+  if (!run || run.status === "idle") return null;
+
+  return (
+    <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">
+          Last run
+        </span>
+        <span
+          className={`font-mono text-[11px] ${
+            run.status === "success"
+              ? "text-emerald-600 dark:text-emerald-400"
+              : run.status === "error"
+                ? "text-rose-600 dark:text-rose-400"
+                : "text-zinc-400 dark:text-zinc-500"
+          }`}
+        >
+          {run.status}
+          {run.durationMs !== undefined ? ` · ${run.durationMs}ms` : ""}
+        </span>
+      </div>
+
+      {run.status === "error" && run.error ? (
+        <p className="mt-2 rounded bg-rose-50 px-2 py-1.5 text-[11px] leading-5 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+          {run.error}
+        </p>
+      ) : null}
+
+      {run.status === "success" && output !== undefined ? (
+        <pre className="mt-2 max-h-48 overflow-auto rounded bg-zinc-50 px-2 py-1.5 font-mono text-[11px] leading-5 whitespace-pre-wrap text-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
+          {preview(output)}
+        </pre>
+      ) : null}
+    </div>
+  );
+}
+
 export function Inspector({ node }: { node: WorkflowNode | null }) {
   const updateNodeConfig = useWorkflowStore((s) => s.updateNodeConfig);
   const renameNode = useWorkflowStore((s) => s.renameNode);
@@ -141,6 +192,8 @@ export function Inspector({ node }: { node: WorkflowNode | null }) {
           />
         ))}
       </div>
+
+      <NodeResult node={node} />
 
       <div className="mt-auto border-t border-zinc-200 p-4 dark:border-zinc-800">
         <button

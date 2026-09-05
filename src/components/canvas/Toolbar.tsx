@@ -2,11 +2,15 @@
 
 import { useRef, useState } from "react";
 import { useWorkflowStore } from "@/lib/store/workflow-store";
+import { runWorkflow } from "@/lib/store/run-client";
 import type { GraphProblem } from "@/lib/graph/validation";
 import type { WorkflowDocument } from "@/lib/types/workflow";
 
 const buttonClass =
-  "rounded-md border border-zinc-300 px-2.5 py-1 text-[12px] text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800";
+  "rounded-md border border-zinc-300 px-2.5 py-1 text-[12px] text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800";
+
+const runButtonClass =
+  "rounded-md bg-zinc-900 px-3 py-1 text-[12px] font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300";
 
 function slugify(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workflow";
@@ -20,8 +24,27 @@ export function Toolbar({ problems }: { problems: GraphProblem[] }) {
   const loadDocument = useWorkflowStore((s) => s.loadDocument);
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
 
+  const runPhase = useWorkflowStore((s) => s.runPhase);
+  const runError = useWorkflowStore((s) => s.runError);
+  const runDurationMs = useWorkflowStore((s) => s.runDurationMs);
+
   const fileInput = useRef<HTMLInputElement>(null);
+  const runController = useRef<AbortController | null>(null);
   const [showProblems, setShowProblems] = useState(false);
+
+  const isRunning = runPhase === "running";
+
+  function startRun() {
+    runController.current?.abort();
+    const controller = new AbortController();
+    runController.current = controller;
+    void runWorkflow(controller.signal);
+  }
+
+  function cancelRun() {
+    runController.current?.abort();
+    runController.current = null;
+  }
 
   function exportDocument() {
     const blob = new Blob([JSON.stringify(toDocument(), null, 2)], {
@@ -61,6 +84,23 @@ export function Toolbar({ problems }: { problems: GraphProblem[] }) {
         {nodeCount} {nodeCount === 1 ? "node" : "nodes"}
       </span>
 
+      {runPhase !== "idle" && !isRunning ? (
+        <span
+          title={runError ?? undefined}
+          className={`shrink-0 max-w-56 truncate font-mono text-[11px] ${
+            runPhase === "success"
+              ? "text-emerald-600 dark:text-emerald-400"
+              : runPhase === "cancelled"
+                ? "text-zinc-500 dark:text-zinc-400"
+                : "text-rose-600 dark:text-rose-400"
+          }`}
+        >
+          {runError
+            ? runError
+            : `${runPhase}${runDurationMs !== null ? ` in ${runDurationMs}ms` : ""}`}
+        </span>
+      ) : null}
+
       {problems.length > 0 ? (
         <div className="relative shrink-0">
           <button
@@ -84,6 +124,21 @@ export function Toolbar({ problems }: { problems: GraphProblem[] }) {
           ) : null}
         </div>
       ) : null}
+
+      {isRunning ? (
+        <button type="button" className={buttonClass} onClick={cancelRun}>
+          Cancel
+        </button>
+      ) : null}
+
+      <button
+        type="button"
+        className={runButtonClass}
+        onClick={startRun}
+        disabled={isRunning || nodeCount === 0}
+      >
+        {isRunning ? "Running…" : "Run"}
+      </button>
 
       <button type="button" className={buttonClass} onClick={exportDocument}>
         Export

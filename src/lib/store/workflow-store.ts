@@ -10,8 +10,10 @@ import {
 } from "@xyflow/react";
 import { getDefinition } from "@/lib/nodes/definitions";
 import { checkConnection } from "@/lib/graph/validation";
+import type { RunEvent } from "@/lib/engine/types";
 import type {
   NodeKind,
+  NodeRunState,
   WorkflowDocument,
   WorkflowEdge,
   WorkflowNode,
@@ -34,6 +36,8 @@ export interface Rejection {
   at: number;
 }
 
+export type RunPhase = "idle" | "running" | "success" | "error" | "cancelled";
+
 interface WorkflowState {
   name: string;
   nodes: WorkflowNode[];
@@ -54,9 +58,29 @@ interface WorkflowState {
   selectNode: (id: string | null) => void;
   dismissRejection: () => void;
 
+  runPhase: RunPhase;
+  runError: string | null;
+  runOutputs: Record<string, unknown>;
+  runDurationMs: number | null;
+  beginRun: () => void;
+  applyRunEvent: (event: RunEvent) => void;
+  failRun: (message: string) => void;
+  resetRun: () => void;
+
   clear: () => void;
   toDocument: () => WorkflowDocument;
   loadDocument: (doc: WorkflowDocument) => void;
+}
+
+/** Applies a run-state patch to one node without touching the others. */
+function patchNodeRun(
+  nodes: WorkflowNode[],
+  nodeId: string,
+  run: NodeRunState,
+): WorkflowNode[] {
+  return nodes.map((node) =>
+    node.id === nodeId ? { ...node, data: { ...node.data, run } } : node,
+  );
 }
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
@@ -133,8 +157,86 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   dismissRejection: () => set({ rejection: null }),
 
+  runPhase: "idle",
+  runError: null,
+  runOutputs: {},
+  runDurationMs: null,
+
+  beginRun: () =>
+    set((state) => ({
+      runPhase: "running",
+      runError: null,
+      runOutputs: {},
+      runDurationMs: null,
+      // Clear the previous run's badges so stale results are never shown as current.
+      nodes: state.nodes.map((node) => ({
+        ...node,
+        data: { ...node.data, run: { status: "idle" as const } },
+      })),
+    })),
+
+  applyRunEvent: (event) =>
+    set((state) => {
+      switch (event.type) {
+        case "run:start":
+          return {};
+        case "node:start":
+          return { nodes: patchNodeRun(state.nodes, event.nodeId, { status: "running" }) };
+        case "node:success":
+          return {
+            nodes: patchNodeRun(state.nodes, event.nodeId, {
+              status: "success",
+              durationMs: event.durationMs,
+            }),
+            runOutputs: { ...state.runOutputs, [event.nodeId]: event.output },
+          };
+        case "node:error":
+          return {
+            nodes: patchNodeRun(state.nodes, event.nodeId, {
+              status: "error",
+              error: event.error,
+              durationMs: event.durationMs,
+            }),
+          };
+        case "node:skipped":
+          return {
+            nodes: patchNodeRun(state.nodes, event.nodeId, { status: "skipped" }),
+          };
+        case "run:finish":
+          return {
+            runPhase: event.status,
+            runError: event.error ?? null,
+            runOutputs: event.outputs,
+            runDurationMs: event.durationMs,
+          };
+      }
+    }),
+
+  failRun: (message) => set({ runPhase: "error", runError: message }),
+
+  resetRun: () =>
+    set((state) => ({
+      runPhase: "idle",
+      runError: null,
+      runOutputs: {},
+      runDurationMs: null,
+      nodes: state.nodes.map((node) => ({
+        ...node,
+        data: { ...node.data, run: undefined },
+      })),
+    })),
+
   clear: () =>
-    set({ nodes: [], edges: [], selectedNodeId: null, rejection: null }),
+    set({
+      nodes: [],
+      edges: [],
+      selectedNodeId: null,
+      rejection: null,
+      runPhase: "idle",
+      runError: null,
+      runOutputs: {},
+      runDurationMs: null,
+    }),
 
   toDocument: () => {
     const { name, nodes, edges } = get();

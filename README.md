@@ -73,11 +73,28 @@ Node executors live one-per-file under `src/lib/engine/nodes/` and are registere
 `registry.ts`. Adding a node type means four things: a type definition, an executor, a
 registry entry, and a canvas component.
 
+## Security model
+
+Two nodes execute what the workflow tells them to, and both treat the workflow
+definition as **trusted input**:
+
+- **Transform** and **Condition** evaluate their expression with `new Function`.
+  This is not a sandbox — an expression runs with the full privileges of the
+  server process.
+- **HTTP Request** will fetch whatever URL it is given, from the server.
+
+That is fine while the only person who can author a workflow is the operator
+running the app, which is the current single-user design. Before exposing
+workflow authoring to untrusted or multi-tenant users, expression evaluation
+must move behind a real sandbox (isolated-vm, QuickJS/WASM, or a subprocess
+with a hard timeout) and the HTTP node needs egress restrictions to block
+requests to internal addresses.
+
 ## Roadmap
 
 - [x] Application foundation — Next.js, TypeScript, Tailwind, tooling
 - [x] Canvas — drag-and-drop board, node palette, connection validation
-- [ ] Execution engine — DAG validation, topological execution, step streaming
+- [x] Execution engine — DAG validation, topological execution, step streaming
 - [ ] Model-backed nodes — prompt templating, streaming output
 - [ ] Persistence — saved workflows, run history, replay
 - [ ] Run inspector — per-node input/output, error surfacing
