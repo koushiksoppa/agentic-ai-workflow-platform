@@ -67,6 +67,9 @@ model RunStep {
   input      String?
   /// Serialized node output; null for failed or skipped steps.
   output     String?
+  /// Serialized execution facts that are not the output itself: the branch a
+  /// Condition took, why a node was skipped.
+  metadata   String?
   error      String?
   durationMs Int?
 

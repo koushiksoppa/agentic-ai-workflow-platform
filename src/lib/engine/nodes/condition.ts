@@ -15,5 +15,13 @@ export const executeCondition: NodeExecutor = async ({ config, input, outputs })
     );
   }
 
-  return { output: input.value, activeHandles: [result ? "true" : "false"] };
+  const branch = result ? "true" : "false";
+
+  // Output stays the untouched input so downstream nodes are unaffected; the
+  // decision travels in metadata instead.
+  return {
+    output: input.value,
+    activeHandles: [branch],
+    metadata: { branch, expression },
+  };
 };

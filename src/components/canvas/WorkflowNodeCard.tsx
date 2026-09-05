@@ -56,6 +56,10 @@ function WorkflowNodeCardImpl({ id, data, selected }: NodeProps<WorkflowNode>) {
   const definition = getDefinition(data.kind);
   const status = data.run?.status ?? "idle";
   const streamed = useWorkflowStore((s) => s.streaming[id]);
+  const branch = useWorkflowStore((s) => {
+    const value = s.runMetadata[id]?.branch;
+    return typeof value === "string" ? value : null;
+  });
 
   return (
     <div
@@ -87,6 +91,21 @@ function WorkflowNodeCardImpl({ id, data, selected }: NodeProps<WorkflowNode>) {
           {/* Tail, not head — the newest tokens are the interesting ones. */}
           {streamed.length > STREAM_TAIL ? `…${streamed.slice(-STREAM_TAIL)}` : streamed}
         </p>
+      ) : null}
+
+      {/* Which way a Condition went, visible without opening the inspector. */}
+      {branch ? (
+        <div className="mx-3 mt-2">
+          <span
+            className={`rounded px-1.5 py-0.5 font-mono text-[10px] leading-4 ${
+              branch === "true"
+                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                : "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+            }`}
+          >
+            {branch}
+          </span>
+        </div>
       ) : null}
 
       {data.run?.status === "error" && data.run.error ? (

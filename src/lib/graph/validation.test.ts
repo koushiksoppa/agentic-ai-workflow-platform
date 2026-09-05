@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { checkConnection, validateGraph, wouldCreateCycle } from "./validation";
 import { getDefinition } from "@/lib/nodes/definitions";
-import type { NodeKind, WorkflowEdge, WorkflowNode } from "@/lib/types/workflow";
+import type {
+  NodeConfig,
+  NodeKind,
+  WorkflowEdge,
+  WorkflowNode,
+} from "@/lib/types/workflow";
 
-function node(id: string, kind: NodeKind): WorkflowNode {
+function node(id: string, kind: NodeKind, config: NodeConfig = {}): WorkflowNode {
   return {
     id,
     type: "workflow",
@@ -11,7 +16,7 @@ function node(id: string, kind: NodeKind): WorkflowNode {
     data: {
       kind,
       label: getDefinition(kind).label,
-      config: { ...getDefinition(kind).defaultConfig },
+      config: { ...getDefinition(kind).defaultConfig, ...config },
     },
   };
 }
@@ -159,6 +164,34 @@ describe("validateGraph", () => {
     const edges = [edge("input_1", "output_1", "value", "in")];
     const problems = validateGraph(nodes, edges);
     expect(problems.some((p) => p.nodeId === "llm_1")).toBe(true);
+  });
+
+  it("warns about a node that cannot run as configured", () => {
+    const nodes = [
+      node("input_1", "input"),
+      node("llm_1", "llm"),
+      node("output_1", "output"),
+    ];
+    const edges = [
+      edge("input_1", "llm_1", "value", "in"),
+      edge("llm_1", "output_1", "text", "in"),
+    ];
+    const problems = validateGraph(nodes, edges);
+    const configProblem = problems.find((p) => p.nodeId === "llm_1");
+    expect(configProblem?.message).toMatch(/Prompt is required/);
+  });
+
+  it("does not warn once the node is configured", () => {
+    const nodes = [
+      node("input_1", "input"),
+      node("llm_1", "llm", { prompt: "Summarize {{input_1.value}}" }),
+      node("output_1", "output"),
+    ];
+    const edges = [
+      edge("input_1", "llm_1", "value", "in"),
+      edge("llm_1", "output_1", "text", "in"),
+    ];
+    expect(validateGraph(nodes, edges)).toEqual([]);
   });
 
   it("passes a complete, connected graph", () => {

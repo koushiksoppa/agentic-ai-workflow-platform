@@ -66,6 +66,8 @@ interface WorkflowState {
   runOutputs: Record<string, unknown>;
   /** What arrived on each node's edges, captured at node:start. */
   runInputs: Record<string, unknown>;
+  /** Branch decisions and skip reasons, keyed by node id. */
+  runMetadata: Record<string, Record<string, unknown>>;
   runDurationMs: number | null;
   /** Partial text arriving from streaming nodes, keyed by node id. */
   streaming: Record<string, string>;
@@ -173,6 +175,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   runError: null,
   runOutputs: {},
   runInputs: {},
+  runMetadata: {},
   runDurationMs: null,
   streaming: {},
 
@@ -182,6 +185,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       runError: null,
       runOutputs: {},
       runInputs: {},
+      runMetadata: {},
       runDurationMs: null,
       streaming: {},
       // Clear the previous run's badges so stale results are never shown as current.
@@ -216,6 +220,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
               durationMs: event.durationMs,
             }),
             runOutputs: { ...state.runOutputs, [event.nodeId]: event.output },
+            runMetadata: event.metadata
+              ? { ...state.runMetadata, [event.nodeId]: { ...event.metadata } }
+              : state.runMetadata,
           };
         case "node:error":
           return {
@@ -227,7 +234,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           };
         case "node:skipped":
           return {
-            nodes: patchNodeRun(state.nodes, event.nodeId, { status: "skipped" }),
+            nodes: patchNodeRun(state.nodes, event.nodeId, {
+              status: "skipped",
+              reason: event.reason,
+            }),
           };
         case "run:finish":
           return {
@@ -247,6 +257,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       runError: null,
       runOutputs: {},
       runInputs: {},
+      runMetadata: {},
       runDurationMs: null,
       streaming: {},
       nodes: state.nodes.map((node) => ({
@@ -274,6 +285,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
                 ? {
                     status: step.status as "success" | "error" | "skipped",
                     error: step.error ?? undefined,
+                    reason:
+                      typeof step.metadata?.skipReason === "string"
+                        ? step.metadata.skipReason
+                        : undefined,
                     durationMs: step.durationMs ?? undefined,
                   }
                 : { status: "idle" as const },
@@ -292,6 +307,11 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             .map((step) => [step.nodeId, step.output]),
         ),
         runInputs: Object.fromEntries(run.steps.map((step) => [step.nodeId, step.input])),
+        runMetadata: Object.fromEntries(
+          run.steps
+            .filter((step) => step.metadata !== null)
+            .map((step) => [step.nodeId, step.metadata as Record<string, unknown>]),
+        ),
         streaming: {},
       };
     }),
@@ -307,6 +327,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       runError: null,
       runOutputs: {},
       runInputs: {},
+      runMetadata: {},
       runDurationMs: null,
       streaming: {},
     }),

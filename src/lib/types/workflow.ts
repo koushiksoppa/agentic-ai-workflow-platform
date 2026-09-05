@@ -34,6 +34,8 @@ export interface NodeRunState {
   status: NodeRunStatus;
   /** Populated on failure. */
   error?: string;
+  /** Populated when skipped: which upstream decision excluded this node. */
+  reason?: string;
   /** Wall-clock duration of the last run, in milliseconds. */
   durationMs?: number;
 }

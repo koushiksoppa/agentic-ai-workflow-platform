@@ -36,6 +36,8 @@ export interface RunStepRecord {
   status: string;
   input: unknown;
   output: unknown;
+  /** Branch taken, skip reason — see NodeMetadata in the engine. */
+  metadata: Record<string, unknown> | null;
   error: string | null;
   durationMs: number | null;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { getDefinition, type FieldSpec } from "@/lib/nodes/definitions";
+import { validateNodeConfig } from "@/lib/nodes/validate";
 import { useWorkflowStore } from "@/lib/store/workflow-store";
 import type { WorkflowNode } from "@/lib/types/workflow";
 
@@ -114,7 +115,11 @@ function NodeResult({ node }: { node: WorkflowNode }) {
   const output = useWorkflowStore((s) => s.runOutputs[node.id]);
   const input = useWorkflowStore((s) => s.runInputs[node.id]);
   const streamed = useWorkflowStore((s) => s.streaming[node.id]);
+  const metadata = useWorkflowStore((s) => s.runMetadata[node.id]);
   const run = node.data.run;
+
+  const branch = typeof metadata?.branch === "string" ? metadata.branch : null;
+  const expression = typeof metadata?.expression === "string" ? metadata.expression : null;
 
   if (!run || run.status === "idle") return null;
 
@@ -146,8 +151,30 @@ function NodeResult({ node }: { node: WorkflowNode }) {
 
       {run.status === "skipped" ? (
         <p className="mt-2 text-[11px] leading-5 text-zinc-400 dark:text-zinc-500">
-          Skipped — no upstream branch reached this node.
+          Skipped — {run.reason ?? "no upstream branch reached this node."}
         </p>
+      ) : null}
+
+      {branch ? (
+        <div className="mt-2 rounded border border-zinc-200 px-2 py-1.5 dark:border-zinc-700">
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+            Branch taken:{" "}
+            <span
+              className={`font-mono font-medium ${
+                branch === "true"
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-amber-600 dark:text-amber-400"
+              }`}
+            >
+              {branch}
+            </span>
+          </p>
+          {expression ? (
+            <p className="mt-1 font-mono text-[10px] leading-4 break-all text-zinc-400 dark:text-zinc-500">
+              {expression}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       <Payload label="Input" value={input} />
@@ -176,16 +203,13 @@ export function Inspector({ node }: { node: WorkflowNode | null }) {
   }
 
   const definition = getDefinition(node.data.kind);
-  const parsed = definition.schema.safeParse(node.data.config);
 
-  // Zod reports issues by path; map the first issue per field to its input.
-  const errors = new Map<string, string>();
-  if (!parsed.success) {
-    for (const issue of parsed.error.issues) {
-      const key = String(issue.path[0] ?? "");
-      if (key && !errors.has(key)) errors.set(key, issue.message);
-    }
-  }
+  // Same check the engine runs before executing, so the field-level errors here
+  // match exactly what would stop a run.
+  const check = validateNodeConfig(node.data.kind, node.data.config);
+  const errors = new Map(
+    check.ok ? [] : check.issues.map((issue) => [issue.field, issue.message]),
+  );
 
   return (
     <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">

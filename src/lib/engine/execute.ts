@@ -1,7 +1,14 @@
 import { getDefinition } from "@/lib/nodes/definitions";
-import type { NodeConfig, WorkflowDocument, WorkflowEdge } from "@/lib/types/workflow";
+import { describeConfigIssues, validateNodeConfig } from "@/lib/nodes/validate";
+import type {
+  NodeConfig,
+  WorkflowDocument,
+  WorkflowEdge,
+  WorkflowNode,
+} from "@/lib/types/workflow";
 import { getExecutor } from "./registry";
 import { topologicalOrder } from "./topology";
+import { NodeExecutionError } from "./types";
 import type { ExecutorResult, NodeExecutionInput, RunEvent, RunStatus } from "./types";
 
 export interface RunOptions {
@@ -18,6 +25,45 @@ function sourceHandleOf(edge: WorkflowEdge, kind: Parameters<typeof getDefinitio
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Explains why no incoming edge was live.
+ *
+ * "No upstream branch reached this node" is true but useless when debugging;
+ * naming the condition and the branch it took is what makes a pruned branch
+ * understandable in the inspector.
+ */
+function explainSkip(
+  edgesIn: WorkflowEdge[],
+  byId: Map<string, WorkflowNode>,
+  activeHandles: Map<string, Set<string>>,
+  unavailable: Set<string>,
+): string {
+  for (const edge of edgesIn) {
+    const source = byId.get(edge.source);
+    if (!source) continue;
+
+    const label = source.data.label || edge.source;
+
+    if (unavailable.has(edge.source)) {
+      return `"${label}" did not produce a result.`;
+    }
+
+    const active = activeHandles.get(edge.source);
+    if (!active) continue;
+
+    const handle = sourceHandleOf(edge, source.data.kind);
+    if (!active.has(handle)) {
+      if (source.data.kind === "condition") {
+        const taken = [...active][0] ?? "the other";
+        return `"${label}" took the ${taken} branch.`;
+      }
+      return `"${label}" did not produce output on "${handle}".`;
+    }
+  }
+
+  return "No upstream branch reached this node.";
 }
 
 /**
@@ -144,7 +190,7 @@ export async function* executeWorkflow(
       yield {
         type: "node:skipped",
         nodeId,
-        reason: "No upstream branch reached this node.",
+        reason: explainSkip(edgesIn, byId, activeHandles, unavailable),
       };
       continue;
     }
@@ -168,6 +214,13 @@ export async function* executeWorkflow(
     const nodeStartedAt = Date.now();
 
     try {
+      // Enforced here rather than at save time: a workflow may legitimately be
+      // saved half-configured, but it must not execute that way.
+      const check = validateNodeConfig(node.data.kind, config);
+      if (!check.ok) {
+        throw new NodeExecutionError(describeConfigIssues(check.issues));
+      }
+
       const result = yield* runWithDeltas(nodeId, (onDelta) =>
         getExecutor(node.data.kind)({
           nodeId,
@@ -190,6 +243,7 @@ export async function* executeWorkflow(
         nodeId,
         output: result.output,
         durationMs: Date.now() - nodeStartedAt,
+        ...(result.metadata ? { metadata: result.metadata } : {}),
       };
     } catch (error) {
       anyFailed = true;

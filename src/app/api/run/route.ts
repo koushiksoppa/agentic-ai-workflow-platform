@@ -110,6 +110,12 @@ export async function POST(request: Request) {
                   status: event.type.slice("node:".length),
                   input: inputs.get(event.nodeId),
                   output: event.type === "node:success" ? event.output : undefined,
+                  metadata:
+                    event.type === "node:success"
+                      ? (event.metadata ?? null)
+                      : event.type === "node:skipped"
+                        ? { skipReason: event.reason }
+                        : null,
                   error: event.type === "node:error" ? event.error : null,
                   durationMs: "durationMs" in event ? event.durationMs : null,
                 });

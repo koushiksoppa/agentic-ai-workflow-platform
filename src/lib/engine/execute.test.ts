@@ -147,6 +147,93 @@ describe("executeWorkflow", () => {
     expect(finish(events).status).toBe("success");
   });
 
+  it("records which branch the condition took", async () => {
+    const events = await runToCompletion(
+      doc(
+        [
+          node("input_1", "input", { name: "n", value: "yes" }),
+          node("condition_1", "condition", { expression: "input.value.length > 0" }),
+          node("output_1", "output", { name: "onTrue" }),
+        ],
+        [edge("input_1", "condition_1"), edge("condition_1", "output_1", "true")],
+      ),
+    );
+
+    const decision = events.find(
+      (e) => e.type === "node:success" && e.nodeId === "condition_1",
+    );
+    expect(decision?.type === "node:success" ? decision.metadata : null).toEqual({
+      branch: "true",
+      expression: "input.value.length > 0",
+    });
+  });
+
+  it("records a false decision without altering the passthrough output", async () => {
+    const events = await runToCompletion(
+      doc(
+        [
+          node("input_1", "input", { name: "n", value: "" }),
+          node("condition_1", "condition", { expression: "input.value.length > 0" }),
+        ],
+        [edge("input_1", "condition_1")],
+      ),
+    );
+
+    const decision = events.find(
+      (e) => e.type === "node:success" && e.nodeId === "condition_1",
+    );
+    expect(decision?.type === "node:success" ? decision.metadata?.branch : null).toBe("false");
+    // Downstream nodes must still receive the untouched upstream value.
+    expect(finish(events).outputs.condition_1).toEqual({ name: "n", value: "" });
+  });
+
+  it("explains a skip by naming the condition and the branch it took", async () => {
+    const events = await runToCompletion(
+      doc(
+        [
+          node("input_1", "input", { name: "n", value: "yes" }),
+          node("condition_1", "condition", { expression: "input.value.length > 0" }),
+          node("output_1", "output", { name: "onTrue" }),
+          node("output_2", "output", { name: "onFalse" }),
+        ],
+        [
+          edge("input_1", "condition_1"),
+          edge("condition_1", "output_1", "true"),
+          edge("condition_1", "output_2", "false"),
+        ],
+      ),
+    );
+
+    const skipped = events.find((e) => e.type === "node:skipped" && e.nodeId === "output_2");
+    expect(skipped?.type === "node:skipped" ? skipped.reason : "").toMatch(
+      /took the true branch/,
+    );
+  });
+
+  it("explains a skip caused by an upstream failure", async () => {
+    const events = await runToCompletion(
+      doc(
+        [
+          node("input_1", "input", { name: "a", value: "x" }),
+          node("transform_1", "transform", { expression: "input.nope.crash" }),
+          node("output_1", "output"),
+        ],
+        [edge("input_1", "transform_1"), edge("transform_1", "output_1")],
+      ),
+    );
+
+    const skipped = events.find((e) => e.type === "node:skipped" && e.nodeId === "output_1");
+    expect(skipped?.type === "node:skipped" ? skipped.reason : "").toMatch(
+      /did not produce a result/,
+    );
+  });
+
+  it("attaches no metadata to nodes that make no decision", async () => {
+    const events = await runToCompletion(doc([node("input_1", "input")], []));
+    const success = events.find((e) => e.type === "node:success");
+    expect(success?.type === "node:success" ? success.metadata : "absent").toBeUndefined();
+  });
+
   it("takes only the false branch when the condition fails", async () => {
     const events = await runToCompletion(
       doc(
@@ -279,6 +366,42 @@ describe("executeWorkflow", () => {
       name: "a",
       value: "hello",
     });
+  });
+
+  it("refuses to execute a node whose configuration is invalid", async () => {
+    // An empty prompt is the default for a freshly added Model node; running
+    // it should fail with the field name, not something incidental from the
+    // executor internals.
+    const events = await runToCompletion(
+      doc([node("llm_1", "llm", { prompt: "" })], []),
+    );
+    const failure = events.find((e) => e.type === "node:error");
+    expect(failure?.type === "node:error" ? failure.error : "").toMatch(/Prompt: Prompt is required/);
+    expect(finish(events).status).toBe("error");
+  });
+
+  it("skips descendants of an invalid node without running them", async () => {
+    const events = await runToCompletion(
+      doc(
+        [
+          node("input_1", "input", { name: "a", value: "x" }),
+          node("http_1", "http", { url: "" }),
+          node("output_1", "output"),
+        ],
+        [edge("input_1", "http_1"), edge("http_1", "output_1")],
+      ),
+    );
+    expect(statusOf(events, "http_1")).toBe("node:error");
+    expect(statusOf(events, "output_1")).toBe("node:skipped");
+  });
+
+  it("validates before invoking the executor, so nothing partial happens", async () => {
+    // A Transform with an empty expression must not reach evaluateExpression.
+    const events = await runToCompletion(
+      doc([node("transform_1", "transform", { expression: "" })], []),
+    );
+    const failure = events.find((e) => e.type === "node:error");
+    expect(failure?.type === "node:error" ? failure.error : "").toMatch(/Expression/);
   });
 
   it("emits start and finish around the run", async () => {

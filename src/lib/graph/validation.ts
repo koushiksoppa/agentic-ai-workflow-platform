@@ -1,5 +1,6 @@
 import type { Connection } from "@xyflow/react";
-import { getPort } from "@/lib/nodes/definitions";
+import { getDefinition, getPort } from "@/lib/nodes/definitions";
+import { describeConfigIssues, validateNodeConfig } from "@/lib/nodes/validate";
 import {
   isPortCompatible,
   type WorkflowEdge,
@@ -141,6 +142,15 @@ export function validateGraph(
       problems.push({
         nodeId: node.id,
         message: `"${node.data.label}" is not connected to anything.`,
+      });
+    }
+
+    // The engine refuses to run these; warn before the user starts a run.
+    const config = validateNodeConfig(node.data.kind, node.data.config);
+    if (!config.ok) {
+      problems.push({
+        nodeId: node.id,
+        message: `${getDefinition(node.data.kind).label} "${node.data.label}" — ${describeConfigIssues(config.issues)}.`,
       });
     }
   }

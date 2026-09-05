@@ -156,6 +156,41 @@ timeout on a single blocking request.
 **Cost.** Model nodes spend real money on every run. `usage` (input and output
 tokens) is returned with each result and shown in the inspector.
 
+## Conditional branching
+
+A Condition node evaluates a boolean expression and activates exactly one of
+its two outputs. The other branch is not executed — its nodes are reported as
+skipped rather than run and discarded.
+
+```
+Input → Model → Condition ├── true  → Node A
+                          └── false → Node B
+```
+
+The decision is recorded, not inferred. A Condition passes its input through
+unchanged so downstream nodes are unaffected, and the branch it chose travels
+separately as step metadata. Both the run history and the inspector therefore
+show which way a run went and why a node was skipped:
+
+> Skipped — "condition_1" took the true branch.
+
+Graphs are validated as acyclic when edges are drawn and again before
+execution, so a cycle cannot reach the executor even through an imported file.
+
+## Configuration validation
+
+Every node kind declares a schema covering its own settings. The same check
+runs in three places, so they can never disagree:
+
+- the inspector, marking the offending field as you type
+- the toolbar lint, warning before a run starts
+- the engine, which refuses to execute a node whose configuration is invalid
+
+A node that fails validation reports the field by name — `Prompt: Prompt is
+required` — rather than failing incidentally somewhere inside its executor.
+Saving is deliberately permissive: a half-configured workflow can be stored and
+returned to, it just cannot run.
+
 ## Security model
 
 **Outbound requests.** The HTTP node runs on the server, so an unrestricted
