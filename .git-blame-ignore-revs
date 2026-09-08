@@ -1,0 +1,10 @@
+# Revisions that only reformat. Ignore them when reading blame:
+#
+#   git blame --ignore-revs-file .git-blame-ignore-revs <file>
+#
+# Or configure it once, for every command in this repo:
+#
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: adopt Prettier and pin line endings to LF
+19731466b5e2a1e69fdcf2072795f8995174a620

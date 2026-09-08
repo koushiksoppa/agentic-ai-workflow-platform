@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same branch supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Prisma reads this via prisma.config.ts. There is no .env file in CI, and the
+  # schema is SQLite, so a scratch file in the workspace is enough — no step
+  # here connects to a real database.
+  DATABASE_URL: "file:./prisma/ci.db"
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # The Prisma client is generated into src/generated and gitignored, so it
+      # does not exist on a fresh checkout. Typecheck and build both import it,
+      # which makes this a prerequisite rather than a convenience.
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Test
+        run: npm test
+
+      # Catches "the schema changed but no migration was generated" — the most
+      # common way a Prisma project passes CI and then fails on deploy.
+      - name: Migration drift
+        run: npm run db:drift
+
+      - name: Build
+        run: npm run build
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Blocks on critical only. The tree currently carries four *high*
+      # advisories in the Prisma CLI's bundled MySQL driver and its config
+      # merger — reachable from the production tree because @prisma/client
+      # peer-depends on the CLI. This project speaks SQLite through
+      # @prisma/adapter-better-sqlite3 and never loads mysql2, and npm's only
+      # offered fix is a downgrade to Prisma 6, which contradicts the
+      # deliberate 7.10.0 pin. A gate that is permanently red teaches people to
+      # ignore it, so highs are reported below instead of blocking here.
+      # Revisit when Prisma ships a CLI with patched transitives.
+      - name: Audit (blocking, critical)
+        run: npm audit --audit-level=critical
+
+      - name: Audit (advisory, high)
+        run: npm audit --audit-level=high
+        continue-on-error: true

@@ -1,5 +1,7 @@
 # Agentic AI Workflow Platform
 
+[![CI](https://github.com/koushiksoppa/agentic-ai-workflow-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/koushiksoppa/agentic-ai-workflow-platform/actions/workflows/ci.yml)
+
 A visual builder for AI agent pipelines. Compose model calls, HTTP requests, data
 transforms, and conditional branches as nodes on a canvas, execute the graph, and
 inspect the input and output of every step.
@@ -10,7 +12,7 @@ Built with Next.js, TypeScript, React Flow, and Prisma. 216 tests.
 
 Agent pipelines are usually written in code and debugged through log output. That
 works until a pipeline branches, retries, and calls external services — at which
-point *"which step produced this garbage?"* becomes genuinely hard to answer.
+point _"which step produced this garbage?"_ becomes genuinely hard to answer.
 Logs tell you what happened in the order it was printed, not which branch was
 taken or what a node actually received.
 
@@ -73,15 +75,15 @@ that both the editor and the executors can import.
 A workflow is a directed acyclic graph. Execution is:
 
 1. **Ordered** — Kahn's algorithm produces a topological order. Cycles are
-   rejected when an edge is drawn *and* re-checked before execution, since an
+   rejected when an edge is drawn _and_ re-checked before execution, since an
    imported file never passed through the editor.
 2. **Validated** — each node's configuration is checked against its schema
    immediately before it runs. An invalid node fails by name (`Prompt: Prompt is
-   required`) rather than throwing something incidental from inside an executor.
+required`) rather than throwing something incidental from inside an executor.
 3. **Branch-aware** — an executor returns which output handles carry its result.
    A Condition activates exactly one, so the other branch is genuinely not
    executed. Its nodes report as skipped, with the reason naming the decision:
-   *"condition_1" took the true branch.*
+   _"condition_1" took the true branch._
 4. **Fault-isolating** — a failing node does not abort the run. Its descendants
    are skipped while independent branches still execute, and the run reports
    `error` at the end. One broken HTTP call cannot hide results the rest of the
@@ -104,7 +106,7 @@ Every node has a deadline enforced by the engine, and each attempt gets its own.
 Cancellation propagates through in-flight requests, and a run always reaches a
 terminal state — including when the client disconnects mid-stream.
 
-*Limitation:* a timeout aborts I/O, but JavaScript cannot preempt synchronous
+_Limitation:_ a timeout aborts I/O, but JavaScript cannot preempt synchronous
 code. A Transform expression containing an infinite loop will still block.
 
 ## Persistence
@@ -112,11 +114,11 @@ code. A Transform expression containing an infinite loop will still block.
 SQLite via Prisma. No database server, no containers — `npm install` and a
 migration is the whole setup.
 
-| Table | Holds |
-|---|---|
-| `Workflow` | The current, editable definition |
-| `Run` | One execution: status, timing, and a graph snapshot |
-| `RunStep` | Per-node status, input, output, metadata, error, duration |
+| Table      | Holds                                                     |
+| ---------- | --------------------------------------------------------- |
+| `Workflow` | The current, editable definition                          |
+| `Run`      | One execution: status, timing, and a graph snapshot       |
+| `RunStep`  | Per-node status, input, output, metadata, error, duration |
 
 **Each run snapshots the graph it executed**, stored separately from the
 workflow's current definition. Editing or even deleting a workflow therefore
@@ -129,17 +131,17 @@ never breaks the stream or the run itself.
 
 ## Tech stack
 
-| Layer | Choice |
-|---|---|
-| Framework | Next.js 16 (App Router), React 19 |
-| Language | TypeScript, strict mode |
-| Styling | Tailwind CSS v4 |
-| Canvas | React Flow (`@xyflow/react`) |
-| State | Zustand |
-| Validation | Zod |
-| Persistence | Prisma 7 + SQLite |
-| Model API | Anthropic SDK |
-| Tests | Vitest |
+| Layer       | Choice                            |
+| ----------- | --------------------------------- |
+| Framework   | Next.js 16 (App Router), React 19 |
+| Language    | TypeScript, strict mode           |
+| Styling     | Tailwind CSS v4                   |
+| Canvas      | React Flow (`@xyflow/react`)      |
+| State       | Zustand                           |
+| Validation  | Zod                               |
+| Persistence | Prisma 7 + SQLite                 |
+| Model API   | Anthropic SDK                     |
+| Tests       | Vitest                            |
 
 ## Example workflow
 
@@ -182,11 +184,11 @@ To run Model nodes, add your key to `.env.local` and restart the dev server.
 
 ## Environment variables
 
-| Variable | File | Purpose |
-|---|---|---|
-| `DATABASE_URL` | `.env` | SQLite path. Read by the Prisma CLI *and* Next, so it cannot live in `.env.local`. |
-| `ANTHROPIC_API_KEY` | `.env.local` | Required for Model nodes. |
-| `ALLOW_PRIVATE_NETWORK_REQUESTS` | `.env.local` | Optional. Lets HTTP nodes reach localhost during development. |
+| Variable                         | File         | Purpose                                                                            |
+| -------------------------------- | ------------ | ---------------------------------------------------------------------------------- |
+| `DATABASE_URL`                   | `.env`       | SQLite path. Read by the Prisma CLI _and_ Next, so it cannot live in `.env.local`. |
+| `ANTHROPIC_API_KEY`              | `.env.local` | Required for Model nodes.                                                          |
+| `ALLOW_PRIVATE_NETWORK_REQUESTS` | `.env.local` | Optional. Lets HTTP nodes reach localhost during development.                      |
 
 Both files are gitignored. Next reads env files only at startup, so restart the
 dev server after changing either. Keys are never returned by the API, written to
@@ -236,7 +238,7 @@ validated before they are sent:
 - Loopback, private, link-local (including `169.254.169.254`), carrier-grade NAT,
   multicast and reserved ranges are refused, for IPv4 and IPv6, including
   IPv4-mapped forms such as `::ffff:127.0.0.1`.
-- Hostnames are resolved first and rejected if *any* resolved address is private,
+- Hostnames are resolved first and rejected if _any_ resolved address is private,
   so a split-horizon name cannot slip through on its public record.
 - Redirects are followed manually and re-validated at every hop; following them
   blindly would let a public URL bounce the server into the internal network.
@@ -248,7 +250,7 @@ validated before they are sent:
 - Responses are capped at 1 MB, with a configurable timeout covering the whole
   redirect chain.
 
-*Known limitation:* the resolved address is not pinned for the connection, so DNS
+_Known limitation:_ the resolved address is not pinned for the connection, so DNS
 rebinding between the check and the request is not defeated. Closing that
 requires dialling the validated IP through a custom agent.
 
