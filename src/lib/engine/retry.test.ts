@@ -8,9 +8,7 @@ vi.mock("./registry", () => ({
 
 const { runToCompletion } = await import("./execute");
 const { NodeExecutionError } = await import("./types");
-const { retryDelay, resolveRetries, resolveTimeout } = await import(
-  "@/lib/nodes/execution-config"
-);
+const { retryDelay, resolveRetries, resolveTimeout } = await import("@/lib/nodes/execution-config");
 
 import { getDefinition } from "@/lib/nodes/definitions";
 import type { NodeConfig, WorkflowDocument, WorkflowNode } from "@/lib/types/workflow";
@@ -165,9 +163,7 @@ describe("per-node timeout", () => {
         }),
     );
 
-    const events = await runToCompletion(
-      doc([node("http_1", { timeoutMs: 1000, retries: 0 })]),
-    );
+    const events = await runToCompletion(doc([node("http_1", { timeoutMs: 1000, retries: 0 })]));
 
     const failure = events.find((e) => e.type === "node:error");
     expect(failure?.type === "node:error" ? failure.error : "").toMatch(/Timed out after 1s/);
@@ -186,9 +182,7 @@ describe("per-node timeout", () => {
       return Promise.resolve({ output: "second attempt was fine" });
     });
 
-    const events = await runToCompletion(
-      doc([node("http_1", { timeoutMs: 1000, retries: 1 })]),
-    );
+    const events = await runToCompletion(doc([node("http_1", { timeoutMs: 1000, retries: 1 })]));
 
     expect(calls).toBe(2);
     expect(finish(events).status).toBe("success");

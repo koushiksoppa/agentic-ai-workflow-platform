@@ -10,13 +10,7 @@ export interface WorkflowExample {
   build: () => WorkflowDocument;
 }
 
-function node(
-  id: string,
-  kind: NodeKind,
-  config: NodeConfig,
-  x: number,
-  y: number,
-) {
+function node(id: string, kind: NodeKind, config: NodeConfig, x: number, y: number) {
   return {
     id,
     type: "workflow",
@@ -30,7 +24,13 @@ function node(
 }
 
 function edge(source: string, sourceHandle: string, target: string) {
-  return { id: `${source}:${sourceHandle}->${target}`, source, target, sourceHandle, targetHandle: "in" };
+  return {
+    id: `${source}:${sourceHandle}->${target}`,
+    source,
+    target,
+    sourceHandle,
+    targetHandle: "in",
+  };
 }
 
 export const EXAMPLES: WorkflowExample[] = [
@@ -45,7 +45,13 @@ export const EXAMPLES: WorkflowExample[] = [
       name: "Length-based routing",
       nodes: [
         node("input_1", "input", { name: "topic", value: "sea otters" }, 0, 80),
-        node("transform_1", "transform", { expression: "input.value.trim().toUpperCase()" }, 280, 80),
+        node(
+          "transform_1",
+          "transform",
+          { expression: "input.value.trim().toUpperCase()" },
+          280,
+          80,
+        ),
         node("condition_1", "condition", { expression: "input.length > 8" }, 560, 80),
         node("output_1", "output", { name: "long" }, 840, 0),
         node("output_2", "output", { name: "short" }, 840, 180),

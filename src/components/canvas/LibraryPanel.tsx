@@ -161,7 +161,9 @@ export function LibraryPanel({ onClose }: { onClose: () => void }) {
                       aria-label={`Delete ${workflow.name}`}
                       onClick={() =>
                         void act(async () => {
-                          if (!window.confirm(`Delete "${workflow.name}"? Its run history is kept.`)) {
+                          if (
+                            !window.confirm(`Delete "${workflow.name}"? Its run history is kept.`)
+                          ) {
                             return;
                           }
                           await removeWorkflow(workflow.id);

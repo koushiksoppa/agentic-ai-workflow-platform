@@ -97,10 +97,7 @@ describe("executeWorkflow", () => {
   it("applies a per-run input override by name", async () => {
     const events = await runToCompletion(
       doc(
-        [
-          node("input_1", "input", { name: "topic", value: "default" }),
-          node("output_1", "output"),
-        ],
+        [node("input_1", "input", { name: "topic", value: "default" }), node("output_1", "output")],
         [edge("input_1", "output_1")],
       ),
       { inputs: { topic: "overridden" } },
@@ -159,9 +156,7 @@ describe("executeWorkflow", () => {
       ),
     );
 
-    const decision = events.find(
-      (e) => e.type === "node:success" && e.nodeId === "condition_1",
-    );
+    const decision = events.find((e) => e.type === "node:success" && e.nodeId === "condition_1");
     expect(decision?.type === "node:success" ? decision.metadata : null).toEqual({
       branch: "true",
       expression: "input.value.length > 0",
@@ -179,9 +174,7 @@ describe("executeWorkflow", () => {
       ),
     );
 
-    const decision = events.find(
-      (e) => e.type === "node:success" && e.nodeId === "condition_1",
-    );
+    const decision = events.find((e) => e.type === "node:success" && e.nodeId === "condition_1");
     expect(decision?.type === "node:success" ? decision.metadata?.branch : null).toBe("false");
     // Downstream nodes must still receive the untouched upstream value.
     expect(finish(events).outputs.condition_1).toEqual({ name: "n", value: "" });
@@ -205,9 +198,7 @@ describe("executeWorkflow", () => {
     );
 
     const skipped = events.find((e) => e.type === "node:skipped" && e.nodeId === "output_2");
-    expect(skipped?.type === "node:skipped" ? skipped.reason : "").toMatch(
-      /took the true branch/,
-    );
+    expect(skipped?.type === "node:skipped" ? skipped.reason : "").toMatch(/took the true branch/);
   });
 
   it("explains a skip caused by an upstream failure", async () => {
@@ -295,10 +286,7 @@ describe("executeWorkflow", () => {
 
   it("reports a cycle without emitting node events", async () => {
     const events = await runToCompletion(
-      doc(
-        [node("a", "transform"), node("b", "transform")],
-        [edge("a", "b"), edge("b", "a")],
-      ),
+      doc([node("a", "transform"), node("b", "transform")], [edge("a", "b"), edge("b", "a")]),
     );
 
     expect(events.some((e) => e.type === "node:start")).toBe(false);
@@ -348,10 +336,7 @@ describe("executeWorkflow", () => {
   it("reports each node's input on node:start, for the inspector", async () => {
     const events = await runToCompletion(
       doc(
-        [
-          node("input_1", "input", { name: "a", value: "hello" }),
-          node("output_1", "output"),
-        ],
+        [node("input_1", "input", { name: "a", value: "hello" }), node("output_1", "output")],
         [edge("input_1", "output_1")],
       ),
     );
@@ -372,11 +357,11 @@ describe("executeWorkflow", () => {
     // An empty prompt is the default for a freshly added Model node; running
     // it should fail with the field name, not something incidental from the
     // executor internals.
-    const events = await runToCompletion(
-      doc([node("llm_1", "llm", { prompt: "" })], []),
-    );
+    const events = await runToCompletion(doc([node("llm_1", "llm", { prompt: "" })], []));
     const failure = events.find((e) => e.type === "node:error");
-    expect(failure?.type === "node:error" ? failure.error : "").toMatch(/Prompt: Prompt is required/);
+    expect(failure?.type === "node:error" ? failure.error : "").toMatch(
+      /Prompt: Prompt is required/,
+    );
     expect(finish(events).status).toBe("error");
   });
 

@@ -23,15 +23,11 @@ describe("resolveTemplate", () => {
   });
 
   it("substitutes a field reference", () => {
-    expect(resolveTemplate("Write about {{input_1.value}}.", outputs)).toBe(
-      "Write about otters.",
-    );
+    expect(resolveTemplate("Write about {{input_1.value}}.", outputs)).toBe("Write about otters.");
   });
 
   it("substitutes several references in one string", () => {
-    expect(resolveTemplate("{{input_1.name}}={{input_1.value}}", outputs)).toBe(
-      "topic=otters",
-    );
+    expect(resolveTemplate("{{input_1.name}}={{input_1.value}}", outputs)).toBe("topic=otters");
   });
 
   it("tolerates whitespace inside the braces", () => {

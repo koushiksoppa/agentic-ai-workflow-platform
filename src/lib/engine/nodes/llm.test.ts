@@ -78,7 +78,13 @@ function ctx(config: Record<string, unknown>, extra: Record<string, unknown> = {
   } as Parameters<typeof executeLlm>[0];
 }
 
-const BASE = { model: "claude-opus-5", prompt: "Say hi", system: "", maxTokens: 1000, effort: "high" };
+const BASE = {
+  model: "claude-opus-5",
+  prompt: "Say hi",
+  system: "",
+  maxTokens: 1000,
+  effort: "high",
+};
 
 beforeEach(() => {
   process.env.ANTHROPIC_API_KEY = "test-key";
@@ -157,9 +163,9 @@ describe("executeLlm templating", () => {
   });
 
   it("fails on an unresolvable reference instead of sending a broken prompt", async () => {
-    await expect(
-      executeLlm(ctx({ ...BASE, prompt: "Use {{ghost.value}}" })),
-    ).rejects.toThrow(/Unknown reference/);
+    await expect(executeLlm(ctx({ ...BASE, prompt: "Use {{ghost.value}}" }))).rejects.toThrow(
+      /Unknown reference/,
+    );
     expect(streamMock).not.toHaveBeenCalled();
   });
 });
@@ -239,7 +245,9 @@ describe("executeLlm error mapping", () => {
 describe("delta streaming through the engine", () => {
   it("emits node:delta events between node:start and node:success", async () => {
     const { runToCompletion } = await import("../execute");
-    streamMock.mockReturnValue(fakeStream(fakeMessage({ content: [{ type: "text", text: "hi" }] }), ["h", "i"]));
+    streamMock.mockReturnValue(
+      fakeStream(fakeMessage({ content: [{ type: "text", text: "hi" }] }), ["h", "i"]),
+    );
 
     const events = await runToCompletion({
       version: 1,

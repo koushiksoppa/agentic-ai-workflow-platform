@@ -10,9 +10,7 @@ export const executeCondition: NodeExecutor = async ({ config, input, outputs })
   const result = evaluateExpression(expression, input.value, outputs);
 
   if (typeof result !== "boolean") {
-    throw new NodeExecutionError(
-      `Condition must evaluate to true or false, got ${typeof result}.`,
-    );
+    throw new NodeExecutionError(`Condition must evaluate to true or false, got ${typeof result}.`);
   }
 
   const branch = result ? "true" : "false";

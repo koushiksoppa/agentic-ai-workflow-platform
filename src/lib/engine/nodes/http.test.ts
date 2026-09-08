@@ -220,7 +220,12 @@ describe("executeHttp — responses", () => {
     fetchMock.mockResolvedValue(jsonResponse({}));
     await executeHttp(
       ctx(
-        { ...BASE, method: "POST", url: "https://api.example.com/{{input.id}}", body: "{{input.id}}" },
+        {
+          ...BASE,
+          method: "POST",
+          url: "https://api.example.com/{{input.id}}",
+          body: "{{input.id}}",
+        },
         { input: { bySource: {}, value: { id: "42" } } },
       ),
     );

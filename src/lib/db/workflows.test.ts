@@ -52,7 +52,12 @@ beforeEach(() => {
 describe("listWorkflows", () => {
   it("summarises rows without returning the graph body", async () => {
     findMany.mockResolvedValue([
-      { id: "w1", name: "Demo", document: JSON.stringify({ nodes: [1, 2, 3], edges: [] }), updatedAt: UPDATED },
+      {
+        id: "w1",
+        name: "Demo",
+        document: JSON.stringify({ nodes: [1, 2, 3], edges: [] }),
+        updatedAt: UPDATED,
+      },
     ]);
 
     const [summary] = await listWorkflows();

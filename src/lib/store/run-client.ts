@@ -97,8 +97,6 @@ export async function runWorkflow(signal?: AbortSignal): Promise<void> {
       useWorkflowStore.setState({ runPhase: "cancelled" });
       return;
     }
-    useWorkflowStore
-      .getState()
-      .failRun(error instanceof Error ? error.message : String(error));
+    useWorkflowStore.getState().failRun(error instanceof Error ? error.message : String(error));
   }
 }

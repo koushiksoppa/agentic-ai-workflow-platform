@@ -24,13 +24,7 @@ const PORT_TONE: Record<PortSpec["type"], string> = {
   any: "!bg-zinc-400",
 };
 
-function PortRow({
-  port,
-  side,
-}: {
-  port: PortSpec;
-  side: "input" | "output";
-}) {
+function PortRow({ port, side }: { port: PortSpec; side: "input" | "output" }) {
   const isInput = side === "input";
   return (
     <div
@@ -75,9 +69,7 @@ function WorkflowNodeCardImpl({ id, data, selected }: NodeProps<WorkflowNode>) {
         <p className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
           {definition.label}
         </p>
-        <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">
-          {data.label}
-        </p>
+        <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">{data.label}</p>
         <p
           className="mt-1 truncate font-mono text-[11px] text-zinc-500 dark:text-zinc-400"
           title={definition.summary(data.config)}

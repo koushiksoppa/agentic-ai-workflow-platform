@@ -1,18 +1,13 @@
 import type { WorkflowEdge, WorkflowNode } from "@/lib/types/workflow";
 
-export type TopologyResult =
-  | { ok: true; order: string[] }
-  | { ok: false; error: string };
+export type TopologyResult = { ok: true; order: string[] } | { ok: false; error: string };
 
 /**
  * Kahn's algorithm. The canvas already refuses edges that would close a loop,
  * but an imported file has had no such gate, so the executor re-checks rather
  * than trusting its input.
  */
-export function topologicalOrder(
-  nodes: WorkflowNode[],
-  edges: WorkflowEdge[],
-): TopologyResult {
+export function topologicalOrder(nodes: WorkflowNode[], edges: WorkflowEdge[]): TopologyResult {
   const ids = new Set(nodes.map((n) => n.id));
 
   for (const edge of edges) {

@@ -94,11 +94,7 @@ interface WorkflowState {
 }
 
 /** Applies a run-state patch to one node without touching the others. */
-function patchNodeRun(
-  nodes: WorkflowNode[],
-  nodeId: string,
-  run: NodeRunState,
-): WorkflowNode[] {
+function patchNodeRun(nodes: WorkflowNode[], nodeId: string, run: NodeRunState): WorkflowNode[] {
   return nodes.map((node) =>
     node.id === nodeId ? { ...node, data: { ...node.data, run } } : node,
   );
@@ -114,11 +110,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   setName: (name) => set({ name }),
 
-  onNodesChange: (changes) =>
-    set((state) => ({ nodes: applyNodeChanges(changes, state.nodes) })),
+  onNodesChange: (changes) => set((state) => ({ nodes: applyNodeChanges(changes, state.nodes) })),
 
-  onEdgesChange: (changes) =>
-    set((state) => ({ edges: applyEdgeChanges(changes, state.edges) })),
+  onEdgesChange: (changes) => set((state) => ({ edges: applyEdgeChanges(changes, state.edges) })),
 
   onConnect: (connection) => {
     const { nodes, edges } = get();
@@ -243,9 +237,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
               status: "success",
               durationMs: event.durationMs,
               attempts:
-                typeof event.metadata?.attempts === "number"
-                  ? event.metadata.attempts
-                  : undefined,
+                typeof event.metadata?.attempts === "number" ? event.metadata.attempts : undefined,
             }),
             runOutputs: { ...state.runOutputs, [event.nodeId]: event.output },
             runMetadata: event.metadata

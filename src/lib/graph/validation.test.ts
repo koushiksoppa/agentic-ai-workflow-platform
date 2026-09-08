@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { checkConnection, validateGraph, wouldCreateCycle } from "./validation";
 import { getDefinition } from "@/lib/nodes/definitions";
-import type {
-  NodeConfig,
-  NodeKind,
-  WorkflowEdge,
-  WorkflowNode,
-} from "@/lib/types/workflow";
+import type { NodeConfig, NodeKind, WorkflowEdge, WorkflowNode } from "@/lib/types/workflow";
 
 function node(id: string, kind: NodeKind, config: NodeConfig = {}): WorkflowNode {
   return {
@@ -21,7 +16,12 @@ function node(id: string, kind: NodeKind, config: NodeConfig = {}): WorkflowNode
   };
 }
 
-function edge(source: string, target: string, sourceHandle?: string, targetHandle?: string): WorkflowEdge {
+function edge(
+  source: string,
+  target: string,
+  sourceHandle?: string,
+  targetHandle?: string,
+): WorkflowEdge {
   return {
     id: `${source}->${target}`,
     source,
@@ -167,11 +167,7 @@ describe("validateGraph", () => {
   });
 
   it("warns about a node that cannot run as configured", () => {
-    const nodes = [
-      node("input_1", "input"),
-      node("llm_1", "llm"),
-      node("output_1", "output"),
-    ];
+    const nodes = [node("input_1", "input"), node("llm_1", "llm"), node("output_1", "output")];
     const edges = [
       edge("input_1", "llm_1", "value", "in"),
       edge("llm_1", "output_1", "text", "in"),

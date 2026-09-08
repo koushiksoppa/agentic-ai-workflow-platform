@@ -84,9 +84,11 @@ export async function POST(request: Request) {
       const send = (event: unknown) => {
         if (clientGone) return;
         try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(event)}
 
-`));
+`),
+          );
         } catch {
           clientGone = true;
         }
@@ -95,11 +97,7 @@ export async function POST(request: Request) {
       // Every terminal status goes through here, and it runs at most once, so
       // the run record always reaches a final state exactly one time.
       let closed = false;
-      const closeRun = async (
-        status: RunStatus,
-        error: string | null,
-        durationMs: number,
-      ) => {
+      const closeRun = async (status: RunStatus, error: string | null, durationMs: number) => {
         if (!runId || closed) return;
         closed = true;
         try {

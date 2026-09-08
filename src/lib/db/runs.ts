@@ -41,13 +41,10 @@ export async function recordStep(
     durationMs?: number | null;
   },
 ): Promise<void> {
-  const output =
-    step.output === undefined ? null : JSON.stringify(step.output ?? null);
+  const output = step.output === undefined ? null : JSON.stringify(step.output ?? null);
   const input = step.input === undefined ? null : JSON.stringify(step.input ?? null);
   const metadata =
-    step.metadata === undefined || step.metadata === null
-      ? null
-      : JSON.stringify(step.metadata);
+    step.metadata === undefined || step.metadata === null ? null : JSON.stringify(step.metadata);
 
   // A re-run of the same node id within one run overwrites rather than throws.
   await prisma.runStep.upsert({
@@ -147,18 +144,16 @@ export async function listRuns(options: { workflowId?: string; limit?: number } 
     },
   });
 
-  return rows.map(
-    (row): RunSummary => ({
-      id: row.id,
-      workflowId: row.workflowId,
-      workflowName: row.workflowName,
-      status: row.status,
-      error: row.error,
-      startedAt: row.startedAt.toISOString(),
-      durationMs: row.durationMs,
-      stepCount: row._count.steps,
-    }),
-  );
+  return rows.map((row): RunSummary => ({
+    id: row.id,
+    workflowId: row.workflowId,
+    workflowName: row.workflowName,
+    status: row.status,
+    error: row.error,
+    startedAt: row.startedAt.toISOString(),
+    durationMs: row.durationMs,
+    stepCount: row._count.steps,
+  }));
 }
 
 export async function getRun(id: string): Promise<RunDetail | null> {

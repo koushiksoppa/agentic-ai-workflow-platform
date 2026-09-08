@@ -47,7 +47,10 @@ describe("executeInput", () => {
 
   it("resolves templates in its value", async () => {
     const result = await executeInput(
-      ctx({ config: { name: "greeting", value: "hi {{a.value}}" }, outputs: { a: { value: "bob" } } }),
+      ctx({
+        config: { name: "greeting", value: "hi {{a.value}}" },
+        outputs: { a: { value: "bob" } },
+      }),
     );
     expect(result.output).toEqual({ name: "greeting", value: "hi bob" });
   });
@@ -88,7 +91,9 @@ describe("executeTransform", () => {
 
   it("surfaces an expression failure", async () => {
     await expect(
-      executeTransform(ctx({ config: { expression: "input.a.b" }, input: { bySource: {}, value: {} } })),
+      executeTransform(
+        ctx({ config: { expression: "input.a.b" }, input: { bySource: {}, value: {} } }),
+      ),
     ).rejects.toThrow(/Expression threw/);
   });
 });
@@ -125,7 +130,9 @@ describe("executeCondition", () => {
 
   it("treats a truthy non-boolean as an error, not as true", async () => {
     await expect(
-      executeCondition(ctx({ config: { expression: "input.length" }, input: { bySource: {}, value: "abc" } })),
+      executeCondition(
+        ctx({ config: { expression: "input.length" }, input: { bySource: {}, value: "abc" } }),
+      ),
     ).rejects.toThrow(/got number/);
   });
 });

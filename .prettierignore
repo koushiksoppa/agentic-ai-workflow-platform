@@ -1,0 +1,13 @@
+# Machine-written: Prisma's generated client and Next's build output.
+src/generated
+.next
+out
+
+# Lockfile and migrations are tool-owned; reformatting them creates noise and
+# can break the tooling that reads them.
+package-lock.json
+prisma/migrations
+
+# Rewritten by `next dev` on every start. Formatting it only guarantees a
+# recurring uncommitted diff.
+AGENTS.md

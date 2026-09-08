@@ -1,11 +1,7 @@
 import type { Connection } from "@xyflow/react";
 import { getDefinition, getPort } from "@/lib/nodes/definitions";
 import { describeConfigIssues, validateNodeConfig } from "@/lib/nodes/validate";
-import {
-  isPortCompatible,
-  type WorkflowEdge,
-  type WorkflowNode,
-} from "@/lib/types/workflow";
+import { isPortCompatible, type WorkflowEdge, type WorkflowNode } from "@/lib/types/workflow";
 
 export type ConnectionCheck = { ok: true } | { ok: false; reason: string };
 
@@ -14,11 +10,7 @@ export type ConnectionCheck = { ok: true } | { ok: false; reason: string };
  * If it is, adding source -> target would close a loop, and the graph would
  * no longer be a DAG the executor can topologically order.
  */
-export function wouldCreateCycle(
-  edges: WorkflowEdge[],
-  source: string,
-  target: string,
-): boolean {
+export function wouldCreateCycle(edges: WorkflowEdge[], source: string, target: string): boolean {
   if (source === target) return true;
 
   const outgoing = new Map<string, string[]>();
@@ -118,10 +110,7 @@ export interface GraphProblem {
  * Whole-graph lint, surfaced in the toolbar. These are warnings about an
  * unrunnable graph, not connection-time errors.
  */
-export function validateGraph(
-  nodes: WorkflowNode[],
-  edges: WorkflowEdge[],
-): GraphProblem[] {
+export function validateGraph(nodes: WorkflowNode[], edges: WorkflowEdge[]): GraphProblem[] {
   const problems: GraphProblem[] = [];
 
   if (nodes.length === 0) {

@@ -292,8 +292,7 @@ export async function* executeWorkflow(
         }
       }
 
-      const metadata =
-        attempt > 1 ? { ...result.metadata, attempts: attempt } : result.metadata;
+      const metadata = attempt > 1 ? { ...result.metadata, attempts: attempt } : result.metadata;
 
       outputs[nodeId] = result.output;
       activeHandles.set(

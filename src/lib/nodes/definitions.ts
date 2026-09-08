@@ -105,8 +105,7 @@ export interface NodeDefinition {
   summary: (config: NodeConfig) => string;
 }
 
-const TEMPLATE_HELP =
-  "Reference upstream results with {{nodeId.field}} - resolved at run time.";
+const TEMPLATE_HELP = "Reference upstream results with {{nodeId.field}} - resolved at run time.";
 
 const MODEL_VALUES = MODEL_OPTIONS.map((m) => m.value) as [string, ...string[]];
 const EFFORT_VALUES = EFFORT_OPTIONS.map((e) => e.value) as [string, ...string[]];

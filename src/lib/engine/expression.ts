@@ -22,11 +22,10 @@ export function evaluateExpression(
   let compiled: (input: unknown, outputs: Record<string, unknown>) => unknown;
 
   try {
-    compiled = new Function(
-      "input",
-      "outputs",
-      `"use strict"; return (${expression});`,
-    ) as (input: unknown, outputs: Record<string, unknown>) => unknown;
+    compiled = new Function("input", "outputs", `"use strict"; return (${expression});`) as (
+      input: unknown,
+      outputs: Record<string, unknown>,
+    ) => unknown;
   } catch (error) {
     throw new NodeExecutionError(
       `Expression could not be parsed: ${error instanceof Error ? error.message : String(error)}`,

@@ -22,7 +22,13 @@ const SAVE_LABEL: Record<SaveState, string> = {
 };
 
 function slugify(name: string): string {
-  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workflow";
+  return (
+    name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "workflow"
+  );
 }
 
 /**

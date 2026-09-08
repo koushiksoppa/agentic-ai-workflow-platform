@@ -74,9 +74,7 @@ function Field({
       {error ? (
         <span className="mt-1 block text-[11px] text-rose-600 dark:text-rose-400">{error}</span>
       ) : spec.help ? (
-        <span className="mt-1 block text-[11px] text-zinc-400 dark:text-zinc-500">
-          {spec.help}
-        </span>
+        <span className="mt-1 block text-[11px] text-zinc-400 dark:text-zinc-500">{spec.help}</span>
       ) : null}
     </label>
   );
@@ -126,9 +124,7 @@ function NodeResult({ node }: { node: WorkflowNode }) {
   return (
     <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">
-          Last run
-        </span>
+        <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">Last run</span>
         <span
           className={`font-mono text-[11px] ${
             run.status === "success"
@@ -152,8 +148,7 @@ function NodeResult({ node }: { node: WorkflowNode }) {
 
       {run.status === "running" && run.attempt && run.attempts ? (
         <p className="mt-2 text-[11px] leading-5 text-amber-600 dark:text-amber-400">
-          Retrying — attempt {run.attempt} of {run.attempts}.
-          {run.reason ? ` ${run.reason}` : ""}
+          Retrying — attempt {run.attempt} of {run.attempts}.{run.reason ? ` ${run.reason}` : ""}
         </p>
       ) : null}
 
@@ -187,10 +182,7 @@ function NodeResult({ node }: { node: WorkflowNode }) {
 
       <Payload label="Input" value={input} />
       {/* While running, the streamed text is the only output there is. */}
-      <Payload
-        label="Output"
-        value={run.status === "running" ? (streamed || undefined) : output}
-      />
+      <Payload label="Output" value={run.status === "running" ? streamed || undefined : output} />
     </div>
   );
 }
@@ -215,9 +207,7 @@ export function Inspector({ node }: { node: WorkflowNode | null }) {
   // Same check the engine runs before executing, so the field-level errors here
   // match exactly what would stop a run.
   const check = validateNodeConfig(node.data.kind, node.data.config);
-  const errors = new Map(
-    check.ok ? [] : check.issues.map((issue) => [issue.field, issue.message]),
-  );
+  const errors = new Map(check.ok ? [] : check.issues.map((issue) => [issue.field, issue.message]));
 
   return (
     <aside className="flex w-60 shrink-0 flex-col overflow-y-auto border-l lg:w-72 border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">

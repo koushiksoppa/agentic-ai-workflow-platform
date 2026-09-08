@@ -30,10 +30,7 @@ function stringify(value: unknown): string {
  * string — a typo in a prompt is far cheaper to find here than in the model's
  * response.
  */
-export function resolveTemplate(
-  text: string,
-  outputs: Record<string, unknown>,
-): string {
+export function resolveTemplate(text: string, outputs: Record<string, unknown>): string {
   return text.replace(REFERENCE, (_match, expression: string) => {
     const trimmed = expression.trim();
     if (!trimmed) {

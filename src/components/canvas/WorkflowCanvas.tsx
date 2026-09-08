@@ -288,9 +288,7 @@ function CanvasInner() {
             </div>
           ) : null}
 
-          {shortcutsOpen ? (
-            <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />
-          ) : null}
+          {shortcutsOpen ? <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} /> : null}
         </div>
       </div>
 

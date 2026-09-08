@@ -71,13 +71,7 @@ function describe(error: unknown): string {
  * non-streaming request that large risks an HTTP timeout. Streaming also lets
  * partial text reach the canvas while the node is still running.
  */
-export const executeLlm: NodeExecutor = async ({
-  config,
-  input,
-  outputs,
-  signal,
-  onDelta,
-}) => {
+export const executeLlm: NodeExecutor = async ({ config, input, outputs, signal, onDelta }) => {
   const modelId = String(config.model ?? DEFAULT_MODEL);
   if (!isKnownModel(modelId)) {
     throw new NodeExecutionError(`Unknown model "${modelId}".`);

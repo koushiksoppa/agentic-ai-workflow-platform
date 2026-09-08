@@ -1,9 +1,4 @@
-import type {
-  RunDetail,
-  RunSummary,
-  SavedWorkflow,
-  WorkflowSummary,
-} from "@/lib/types/api";
+import type { RunDetail, RunSummary, SavedWorkflow, WorkflowSummary } from "@/lib/types/api";
 import { useWorkflowStore } from "./workflow-store";
 
 async function request<T>(input: string, init?: RequestInit): Promise<T> {

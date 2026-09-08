@@ -1,14 +1,7 @@
 import type { Node, Edge } from "@xyflow/react";
 
 /** The six node kinds a workflow can be built from. */
-export const NODE_KINDS = [
-  "input",
-  "llm",
-  "http",
-  "transform",
-  "condition",
-  "output",
-] as const;
+export const NODE_KINDS = ["input", "llm", "http", "transform", "condition", "output"] as const;
 
 export type NodeKind = (typeof NODE_KINDS)[number];
 

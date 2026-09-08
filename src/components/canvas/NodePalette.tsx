@@ -8,10 +8,13 @@ export const NODE_DRAG_MIME = "application/x-workflow-node";
 const CATEGORY_ORDER: NodeCategory[] = ["Trigger", "Model", "Data", "Logic", "Output"];
 
 function groupByCategory(): [NodeCategory, NodeDefinition[]][] {
-  return CATEGORY_ORDER.map((category) => [
-    category,
-    NODE_LIST.filter((definition) => definition.category === category),
-  ] as [NodeCategory, NodeDefinition[]]).filter(([, items]) => items.length > 0);
+  return CATEGORY_ORDER.map(
+    (category) =>
+      [category, NODE_LIST.filter((definition) => definition.category === category)] as [
+        NodeCategory,
+        NodeDefinition[],
+      ],
+  ).filter(([, items]) => items.length > 0);
 }
 
 export function NodePalette({ onAdd }: { onAdd: (kind: NodeKind) => void }) {

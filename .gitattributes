@@ -1,0 +1,14 @@
+# Normalise line endings to LF in both the repository and the working tree.
+#
+# Without this, Windows checkouts get CRLF while the Linux CI runner gets LF,
+# and `prettier --check` (which pins endOfLine: lf) passes in one place and
+# fails in the other. Pinning the working tree removes that whole class of
+# false failure.
+* text=auto eol=lf
+
+*.db     binary
+*.wasm   binary
+*.ico    binary
+*.png    binary
+*.jpg    binary
+*.woff2  binary
