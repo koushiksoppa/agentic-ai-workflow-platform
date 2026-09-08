@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { RunEvent } from "@/lib/engine/types";
 
 const createRun = vi.fn();
 const recordStep = vi.fn();
 const finishRun = vi.fn();
+const appendRunEvents = vi.fn();
 
 vi.mock("@/lib/db/runs", () => ({
   createRun: (...args: unknown[]) => createRun(...args),
@@ -10,7 +12,14 @@ vi.mock("@/lib/db/runs", () => ({
   finishRun: (...args: unknown[]) => finishRun(...args),
 }));
 
+// The appender reaches the database through this module; without the mock these
+// tests would write real rows into the development database.
+vi.mock("@/lib/db/events", () => ({
+  appendRunEvents: (...args: unknown[]) => appendRunEvents(...args),
+}));
+
 const { POST } = await import("./route");
+const { reconstructRun } = await import("@/lib/engine/runtime/state");
 
 function workflow() {
   return {
@@ -60,10 +69,18 @@ async function drain(response: Response) {
     .map((frame) => JSON.parse(frame.replace(/^data: /, "")) as { type: string; status?: string });
 }
 
+/** Every event the route wrote to the log, in sequence order. */
+function logged() {
+  return appendRunEvents.mock.calls
+    .flatMap((call) => call[1] as { seq: number; event: RunEvent }[])
+    .sort((a, b) => a.seq - b.seq);
+}
+
 beforeEach(() => {
   createRun.mockReset().mockResolvedValue("run_1");
   recordStep.mockReset().mockResolvedValue(undefined);
   finishRun.mockReset().mockResolvedValue(undefined);
+  appendRunEvents.mockReset().mockResolvedValue(undefined);
 });
 
 describe("POST /api/run — validation", () => {
@@ -176,5 +193,75 @@ describe("POST /api/run — persistence is best effort", () => {
     finishRun.mockRejectedValue(new Error("database is locked"));
     const events = await drain(await POST(runRequest({ workflow: workflow() })));
     expect(events.at(-1)).toMatchObject({ type: "run:finish", status: "success" });
+  });
+});
+
+describe("POST /api/run — event log", () => {
+  it("writes the run to the log against the run's id", async () => {
+    await drain(await POST(runRequest({ workflow: workflow() })));
+    expect(appendRunEvents.mock.calls.every((call) => call[0] === "run_1")).toBe(true);
+  });
+
+  it("logs every event the client received, in the same order", async () => {
+    const streamed = await drain(await POST(runRequest({ workflow: workflow() })));
+    expect(logged().map((e) => e.event.type)).toEqual(streamed.map((e) => e.type));
+  });
+
+  it("numbers events densely from 1", async () => {
+    await drain(await POST(runRequest({ workflow: workflow() })));
+    const seqs = logged().map((e) => e.seq);
+    expect(seqs).toEqual(Array.from({ length: seqs.length }, (_, i) => i + 1));
+  });
+
+  it("writes a log a reader can reconstruct the whole run from", async () => {
+    await drain(await POST(runRequest({ workflow: workflow() })));
+
+    // The acceptance criterion for this step: the log alone is enough.
+    const state = reconstructRun(logged().map((e) => e.event));
+    expect(state.runId).toBe("run_1");
+    expect(state.status).toBe("success");
+    expect(state.steps.map((s) => [s.nodeId, s.status])).toEqual([
+      ["input_1", "success"],
+      ["output_1", "success"],
+    ]);
+  });
+
+  it("logs a terminal event even when the client vanished first", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await drain(await POST(runRequest({ workflow: workflow() }, controller.signal)));
+
+    // Without this the log would reconstruct as "running" while the run row
+    // said "cancelled" — the projection is supposed to be authoritative, so it
+    // does not get to disagree with the record it derives.
+    const state = reconstructRun(logged().map((e) => e.event));
+    expect(state.status).toBe("cancelled");
+    expect(logged().filter((e) => e.event.type === "run:finish")).toHaveLength(1);
+  });
+
+  it("does not log a second terminal event when the run ended normally", async () => {
+    await drain(await POST(runRequest({ workflow: workflow() })));
+    expect(logged().filter((e) => e.event.type === "run:finish")).toHaveLength(1);
+  });
+
+  it("flushes the log before the response ends", async () => {
+    // Make the write settle a tick late; the route must still have waited.
+    appendRunEvents.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 1)));
+    await drain(await POST(runRequest({ workflow: workflow() })));
+    expect(logged().at(-1)?.event.type).toBe("run:finish");
+  });
+
+  it("completes the run when the log cannot be written", async () => {
+    appendRunEvents.mockRejectedValue(new Error("database is locked"));
+    const events = await drain(await POST(runRequest({ workflow: workflow() })));
+
+    expect(events.at(-1)).toMatchObject({ type: "run:finish", status: "success" });
+    expect(finishRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("writes nothing when there is no run record to attach the log to", async () => {
+    createRun.mockRejectedValue(new Error("database is locked"));
+    await drain(await POST(runRequest({ workflow: workflow() })));
+    expect(appendRunEvents).not.toHaveBeenCalled();
   });
 });

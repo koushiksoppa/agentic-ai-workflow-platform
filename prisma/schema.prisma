@@ -40,16 +40,67 @@ model Run {
   /// re-runs what actually ran rather than what the workflow says today.
   document String
 
-  status     String // running | success | error | cancelled
+  /// queued | running | awaiting_approval | success | error | cancelled
+  ///
+  /// `queued` and `awaiting_approval` are not yet reachable — the run still
+  /// starts executing inside the request. They exist now so the worker in the
+  /// next step is a code change rather than another migration.
+  status     String
   error      String?
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
   durationMs Int?
 
-  steps RunStep[]
+  /// Worker lease. A run is claimed by exactly one worker at a time; an expired
+  /// lease means that worker died and the run may be reclaimed. Unused until
+  /// execution moves out of the request, but claimed here so the column exists
+  /// before anything depends on it.
+  claimedBy      String?
+  leaseExpiresAt DateTime?
+
+  steps  RunStep[]
+  events RunEvent[]
 
   @@index([startedAt])
   @@index([workflowId])
+  /// The worker's claim query and the stale-run sweep both filter on these.
+  @@index([status, leaseExpiresAt])
+}
+
+/// Append-only execution history: one row per state change, in the order the
+/// engine produced them.
+///
+/// This is the canonical record of a run. `RunStep` holds the *current* state
+/// of each node and is a projection of these events — if the two ever
+/// disagree, this table is right. Replaying from a cursor is what lets a
+/// client reconnect without losing anything, and what lets an interrupted run
+/// be reconstructed rather than guessed at.
+///
+/// Rows are never updated and never deleted individually; they go away only
+/// with their run.
+model RunEvent {
+  id    String @id @default(cuid())
+  runId String
+  run   Run    @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  /// Position within the run, starting at 1. Assigned by a single serialised
+  /// writer, so it is dense and strictly increasing. Doubles as the SSE cursor.
+  seq Int
+
+  /// RunEvent type, e.g. "node:started". Deliberately a string rather than an
+  /// enum: adding an event type should not require a migration, and readers
+  /// must tolerate types they do not know.
+  type String
+
+  /// Null for run-level events.
+  nodeId String?
+
+  /// Serialized event body. JSON text, since SQLite has no JSON column type.
+  payload String
+
+  createdAt DateTime @default(now())
+
+  @@unique([runId, seq])
 }
 
 model RunStep {

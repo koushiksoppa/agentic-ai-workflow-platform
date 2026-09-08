@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { executeWorkflow } from "@/lib/engine/execute";
-import type { RunStatus } from "@/lib/engine/types";
+import { createRunEventSink } from "@/lib/engine/events/appender";
+import type { RunEvent, RunStatus } from "@/lib/engine/types";
 import { createRun, finishRun, recordStep } from "@/lib/db/runs";
 import { workflowDocumentSchema } from "@/lib/api/schemas";
 import type { WorkflowDocument } from "@/lib/types/workflow";
@@ -69,6 +70,10 @@ export async function POST(request: Request) {
     console.error("Could not open a run record:", error);
   }
 
+  // The append-only log. Writes are batched and chained in the background, so
+  // recording an event costs the run nothing but a push onto an array.
+  const events = runId ? createRunEventSink(runId) : null;
+
   const encoder = new TextEncoder();
   const startedAt = Date.now();
   let position = 0;
@@ -94,12 +99,37 @@ export async function POST(request: Request) {
         }
       };
 
+      // Records an event, then sends it. Persistence goes first so a dead
+      // stream can never cost us history.
+      let finishLogged = false;
+      const record = (event: RunEvent) => {
+        if (event.type === "run:finish") finishLogged = true;
+        events?.append(event);
+        send(event);
+      };
+
       // Every terminal status goes through here, and it runs at most once, so
       // the run record always reaches a final state exactly one time.
       let closed = false;
       const closeRun = async (status: RunStatus, error: string | null, durationMs: number) => {
         if (!runId || closed) return;
         closed = true;
+
+        // A run that ends without the generator emitting a terminal event —
+        // an abandoned stream is the usual cause — would otherwise leave a log
+        // that reconstructs as "running" while the row says otherwise. The log
+        // is meant to be authoritative, so it does not get to disagree.
+        if (!finishLogged) {
+          finishLogged = true;
+          events?.append({
+            type: "run:finish",
+            status,
+            durationMs,
+            outputs: {},
+            ...(error ? { error } : {}),
+          });
+        }
+
         try {
           await finishRun(runId, { status, error, durationMs });
         } catch (dbError) {
@@ -114,7 +144,7 @@ export async function POST(request: Request) {
           // Aborts the run if the client disconnects mid-stream.
           signal: request.signal,
         })) {
-          send(event);
+          record(event);
 
           if (event.type === "node:start") inputs.set(event.nodeId, event.input);
 
@@ -152,7 +182,7 @@ export async function POST(request: Request) {
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        send({
+        record({
           type: "run:finish",
           status: "error",
           durationMs: Date.now() - startedAt,
@@ -171,6 +201,12 @@ export async function POST(request: Request) {
           "The client disconnected before the run finished.",
           Date.now() - startedAt,
         );
+
+        // Appends are batched in the background, so the last few are still in
+        // flight when the loop ends. Waiting here is what makes the log
+        // complete by the time the response is over.
+        await events?.flush();
+
         try {
           controller.close();
         } catch {
